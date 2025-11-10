@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"go/format"
 	"maps"
-	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 
@@ -16,9 +14,10 @@ import (
 
 // Unit は単一のテンプレート処理単位
 type Unit struct {
-	Pkg           string // 出力パッケージ名
-	SourcePath    string // 埋め込むテンプレファイルのパス（go:embedディレクティブで使用）
-	SourceLiteral string // テンプレ本文
+	TemplateName string // テンプレート名 (例: "footer", "mail_invite/title")
+	Pkg          string // 出力パッケージ名
+	EmbedPath    string // go:embedディレクティブで使用するパス
+	Source       string // テンプレート本文
 }
 
 // tmpl は単一テンプレートのコード生成に必要な情報
@@ -57,7 +56,7 @@ func (p *emitPrepared) allTemplates() []tmpl {
 }
 
 // prepare はテンプレートをスキャンし、型を解決して、コード生成に必要なデータを準備する
-func prepare(units []Unit, basedir string) (*emitPrepared, error) {
+func prepare(units []Unit) (*emitPrepared, error) {
 	if len(units) == 0 {
 		return nil, fmt.Errorf("no units provided")
 	}
@@ -73,11 +72,8 @@ func prepare(units []Unit, basedir string) (*emitPrepared, error) {
 
 	// 各テンプレートを処理
 	for _, unit := range units {
-		// テンプレート名を抽出 (例: "mail_invite/title" または "footer")
-		templateName, err := extractTemplateName(unit.SourcePath, basedir)
-		if err != nil {
-			return nil, fmt.Errorf("failed to extract template name from %s: %w", unit.SourcePath, err)
-		}
+		// テンプレート名はコマンド側で決定済み
+		templateName := unit.TemplateName
 
 		// グループ名を抽出 (スラッシュが含まれていればグループ)
 		var groupName string
@@ -102,15 +98,15 @@ func prepare(units []Unit, basedir string) (*emitPrepared, error) {
 		varName := strings.ReplaceAll(templateName, "/", "_") + "TplSource"
 
 		// テンプレートをスキャン
-		sch, err := scan.ScanTemplate(unit.SourceLiteral)
+		sch, err := scan.ScanTemplate(unit.Source)
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan template %s: %w", unit.SourcePath, err)
+			return nil, fmt.Errorf("failed to scan template %s: %w", unit.TemplateName, err)
 		}
 
 		// 型解決
-		typed, err := typing.Resolve(sch, unit.SourceLiteral)
+		typed, err := typing.Resolve(sch, unit.Source)
 		if err != nil {
-			return nil, fmt.Errorf("failed to resolve types for %s: %w", unit.SourcePath, err)
+			return nil, fmt.Errorf("failed to resolve types for %s: %w", unit.TemplateName, err)
 		}
 
 		// テンプレートデータを追加
@@ -118,7 +114,7 @@ func prepare(units []Unit, basedir string) (*emitPrepared, error) {
 			name:       templateName,
 			groupName:  groupName,
 			typeName:   typeName,
-			sourcePath: unit.SourcePath,
+			sourcePath: unit.EmbedPath,
 			varName:    varName,
 			typed:      typed,
 		})
@@ -173,9 +169,9 @@ func organizeGroups(templates []tmpl) ([]tmplGroup, []tmpl) {
 
 // Emit は複数のテンプレートから1つの統合Goファイルを生成する
 // 単一テンプレートの場合も同じフォーマットで生成される
-func Emit(units []Unit, basedir string) (string, error) {
+func Emit(units []Unit) (string, error) {
 	// Phase 1: データ収集と準備
-	prepared, err := prepare(units, basedir)
+	prepared, err := prepare(units)
 	if err != nil {
 		return "", err
 	}
@@ -408,57 +404,6 @@ func formatCode(code string) (string, error) {
 	return string(formatted), nil
 }
 
-// extractTemplateName はファイルパスからテンプレート名を抽出する
-// basedir からの相対パスでグループ判定を行う
-// 例: basedir="templates", path="templates/footer.tmpl" -> "footer" (フラット)
-// 例: basedir="templates", path="templates/email/welcome.tmpl" -> "email/welcome" (グループ)
-func extractTemplateName(path string, basedir string) (string, error) {
-	// basedir からの相対パスを取得
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		return "", err
-	}
-	absBasedir, err := filepath.Abs(basedir)
-	if err != nil {
-		return "", err
-	}
-
-	relPath, err := filepath.Rel(absBasedir, absPath)
-	if err != nil {
-		return "", fmt.Errorf("path %s is not under basedir %s", path, basedir)
-	}
-
-	// 拡張子を削除
-	pathWithoutExt := strings.TrimSuffix(relPath, filepath.Ext(relPath))
-
-	// ディレクトリ区切りで分割
-	parts := strings.Split(filepath.ToSlash(pathWithoutExt), "/")
-
-	// 各パーツから数字プレフィックスを削除してクリーンアップ
-	for i, part := range parts {
-		parts[i] = cleanName(part)
-	}
-
-	// 階層チェック（フラット=1パーツ、グループ=2パーツ、それ以上はエラー）
-	if len(parts) > 2 {
-		return "", fmt.Errorf("template nesting too deep: %s (max 1 level of grouping)", relPath)
-	}
-
-	// パスとして結合
-	return strings.Join(parts, "/"), nil
-}
-
-// cleanName は名前から数字プレフィックスを削除し、ハイフンをアンダースコアに変換する
-func cleanName(name string) string {
-	// 数字プレフィックスを削除（例: "01_header" -> "header", "1-mail" -> "mail"）
-	re := regexp.MustCompile(`^\d+[-_]`)
-	name = re.ReplaceAllString(name, "")
-
-	// ハイフンをアンダースコアに変換
-	name = strings.ReplaceAll(name, "-", "_")
-
-	return name
-}
 
 // adjustTypeForTemplate は型名をテンプレート固有に調整する
 func adjustTypeForTemplate(goType string, templatePrefix string) string {

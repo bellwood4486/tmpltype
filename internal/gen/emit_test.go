@@ -71,19 +71,20 @@ func findFunc(f *ast.File, name string) *ast.FuncDecl {
 
 func TestEmit_BasicScaffoldAndTypes(t *testing.T) {
 	u := gen.Unit{
-		Pkg:           "x",
-		SourcePath:    "tpl.tmpl",
-		SourceLiteral: "{{ .User.Name }}\n{{ .Message }}\n",
+		TemplateName: "tpl",
+		Pkg:          "x",
+		EmbedPath:    "tpl.tmpl",
+		Source:       "{{ .User.Name }}\n{{ .Message }}\n",
 	}
 
-	code, err := gen.Emit([]gen.Unit{u}, ".")
+	code, err := gen.Emit([]gen.Unit{u})
 	if err != nil {
 		t.Fatalf("Emit failed: %v", err)
 	}
 
 	// Quick string checks
-	if !strings.Contains(code, "//go:embed "+u.SourcePath) {
-		t.Fatalf("missing go:embed for %q\n%s", u.SourcePath, code)
+	if !strings.Contains(code, "//go:embed "+u.EmbedPath) {
+		t.Fatalf("missing go:embed for %q\n%s", u.EmbedPath, code)
 	}
 	if !strings.Contains(code, "Option(\"missingkey=error\")") {
 		t.Fatalf("missing Template Option missingkey=error\n%s", code)
@@ -186,11 +187,12 @@ func TestEmit_BasicScaffoldAndTypes(t *testing.T) {
 
 func TestEmit_RangeAndIndex_TypesAndOrder(t *testing.T) {
 	u := gen.Unit{
-		Pkg:           "x",
-		SourcePath:    "email.tmpl",
-		SourceLiteral: "{{ range .Items }}{{ .Title }}{{ .ID }}{{ end }}\n{{ index .Meta \"env\" }}\n",
+		TemplateName: "email",
+		Pkg:          "x",
+		EmbedPath:    "email.tmpl",
+		Source:       "{{ range .Items }}{{ .Title }}{{ .ID }}{{ end }}\n{{ index .Meta \"env\" }}\n",
 	}
-	code, err := gen.Emit([]gen.Unit{u}, ".")
+	code, err := gen.Emit([]gen.Unit{u})
 	if err != nil {
 		t.Fatalf("Emit failed: %v", err)
 	}
@@ -235,8 +237,8 @@ func TestEmit_RangeAndIndex_TypesAndOrder(t *testing.T) {
 }
 
 func TestEmit_Golden_Simple(t *testing.T) {
-	u := gen.Unit{Pkg: "x", SourcePath: "tpl.tmpl", SourceLiteral: "{{ .User.Name }}\n{{ .Message }}\n"}
-	code, err := gen.Emit([]gen.Unit{u}, ".")
+	u := gen.Unit{TemplateName: "tpl", Pkg: "x", EmbedPath: "tpl.tmpl", Source: "{{ .User.Name }}\n{{ .Message }}\n"}
+	code, err := gen.Emit([]gen.Unit{u})
 	if err != nil {
 		t.Fatalf("Emit failed: %v", err)
 	}
@@ -257,8 +259,8 @@ func TestEmit_CompilesInTempModule(t *testing.T) {
 		t.Skip("skip on restricted platforms")
 	}
 
-	u := gen.Unit{Pkg: "x", SourcePath: "tpl.tmpl", SourceLiteral: "Hello {{ .Message }}"}
-	code, err := gen.Emit([]gen.Unit{u}, ".")
+	u := gen.Unit{TemplateName: "tpl", Pkg: "x", EmbedPath: "tpl.tmpl", Source: "Hello {{ .Message }}"}
+	code, err := gen.Emit([]gen.Unit{u})
 	if err != nil {
 		t.Fatalf("Emit failed: %v", err)
 	}
@@ -269,7 +271,7 @@ func TestEmit_CompilesInTempModule(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Write the template file for go:embed
-	if err := os.WriteFile(filepath.Join(dir, u.SourcePath), []byte("content"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, u.EmbedPath), []byte("content"), 0644); err != nil {
 		t.Fatal(err)
 	}
 	// Write generated code
@@ -295,12 +297,13 @@ func TestEmit_WithParamOverride_BasicTypes(t *testing.T) {
 {{ if .User.Email }}Email: {{ .User.Email }}{{ end }}
 `
 	u := gen.Unit{
-		Pkg:           "x",
-		SourcePath:    "tpl.tmpl",
-		SourceLiteral: src,
+		TemplateName: "tpl",
+		Pkg:          "x",
+		EmbedPath:    "tpl.tmpl",
+		Source:       src,
 	}
 
-	code, err := gen.Emit([]gen.Unit{u}, ".")
+	code, err := gen.Emit([]gen.Unit{u})
 	if err != nil {
 		t.Fatalf("Emit failed: %v", err)
 	}
@@ -348,12 +351,13 @@ func TestEmit_WithParamOverride_SliceType(t *testing.T) {
 {{ range .Items }}{{ .ID }}: {{ .Title }}{{ end }}
 `
 	u := gen.Unit{
-		Pkg:           "x",
-		SourcePath:    "tpl.tmpl",
-		SourceLiteral: src,
+		TemplateName: "tpl",
+		Pkg:          "x",
+		EmbedPath:    "tpl.tmpl",
+		Source:       src,
 	}
 
-	code, err := gen.Emit([]gen.Unit{u}, ".")
+	code, err := gen.Emit([]gen.Unit{u})
 	if err != nil {
 		t.Fatalf("Emit failed: %v", err)
 	}
