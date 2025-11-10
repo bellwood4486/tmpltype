@@ -105,7 +105,7 @@ func main() {
 
 #### 複数テンプレート
 
-`-dir`オプションを指定すると、ディレクトリ内のすべての`.tmpl`ファイルが自動的に処理されます:
+`-dir`オプションを指定すると、指定ディレクトリ直下と1階層下のサブディレクトリ内の`.tmpl`ファイルが自動的に処理されます:
 
 ```go
 //go:generate tmpltype -dir templates -pkg main -out templates_gen.go
@@ -703,7 +703,7 @@ For complex types, use `@param` directives in your template `templates/user.tmpl
 
 #### Multiple Templates
 
-The `-dir` option automatically processes all `.tmpl` files in the directory:
+The `-dir` option automatically processes `.tmpl` files in the specified directory and one level of subdirectories:
 
 ```go
 //go:generate tmpltype -dir templates -pkg main -out templates_gen.go
