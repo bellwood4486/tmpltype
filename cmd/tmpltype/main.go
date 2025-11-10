@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 
 	"github.com/bellwood4486/tmpltype/internal/gen"
 )
@@ -49,21 +51,30 @@ func main() {
 			os.Exit(1)
 		}
 
-		relPath, err := filepath.Rel(outDir, file)
+		// テンプレート名を抽出
+		templateName, err := extractTemplateName(file, *dir)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, fmt.Errorf("failed to get relative path for %s: %w", file, err))
+			fmt.Fprintln(os.Stderr, fmt.Errorf("failed to extract template name from %s: %w", file, err))
+			os.Exit(1)
+		}
+
+		// embedパスを計算（出力ディレクトリからの相対パス）
+		embedPath, err := filepath.Rel(outDir, file)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, fmt.Errorf("failed to get embed path for %s: %w", file, err))
 			os.Exit(1)
 		}
 
 		units = append(units, gen.Unit{
-			Pkg:           *pkg,
-			SourcePath:    relPath,
-			SourceLiteral: string(src),
+			TemplateName: templateName,
+			Pkg:          *pkg,
+			EmbedPath:    embedPath,
+			Source:       string(src),
 		})
 	}
 
-	// コード生成（basedirを渡す）
-	code, err := gen.Emit(units, *dir)
+	// コード生成
+	code, err := gen.Emit(units)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, fmt.Errorf("failed to emit: %w", err))
 		os.Exit(1)
@@ -97,4 +108,56 @@ func scanTemplateFiles(dir string) ([]string, error) {
 	files = append(files, groupFiles...)
 
 	return files, nil
+}
+
+// extractTemplateName はファイルパスからテンプレート名を抽出する
+// basedir からの相対パスでグループ判定を行う
+// 例: basedir="templates", path="templates/footer.tmpl" -> "footer" (フラット)
+// 例: basedir="templates", path="templates/email/welcome.tmpl" -> "email/welcome" (グループ)
+func extractTemplateName(path string, basedir string) (string, error) {
+	// basedir からの相対パスを取得
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	absBasedir, err := filepath.Abs(basedir)
+	if err != nil {
+		return "", err
+	}
+
+	relPath, err := filepath.Rel(absBasedir, absPath)
+	if err != nil {
+		return "", fmt.Errorf("path %s is not under basedir %s", path, basedir)
+	}
+
+	// 拡張子を削除
+	pathWithoutExt := strings.TrimSuffix(relPath, filepath.Ext(relPath))
+
+	// ディレクトリ区切りで分割
+	parts := strings.Split(filepath.ToSlash(pathWithoutExt), "/")
+
+	// 各パーツから数字プレフィックスを削除してクリーンアップ
+	for i, part := range parts {
+		parts[i] = cleanName(part)
+	}
+
+	// 階層チェック（フラット=1パーツ、グループ=2パーツ、それ以上はエラー）
+	if len(parts) > 2 {
+		return "", fmt.Errorf("template nesting too deep: %s (max 1 level of grouping)", relPath)
+	}
+
+	// パスとして結合
+	return strings.Join(parts, "/"), nil
+}
+
+// cleanName は名前から数字プレフィックスを削除し、ハイフンをアンダースコアに変換する
+func cleanName(name string) string {
+	// 数字プレフィックスを削除（例: "01_header" -> "header", "1-mail" -> "mail"）
+	re := regexp.MustCompile(`^\d+[-_]`)
+	name = re.ReplaceAllString(name, "")
+
+	// ハイフンをアンダースコアに変換
+	name = strings.ReplaceAll(name, "-", "_")
+
+	return name
 }
