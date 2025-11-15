@@ -58,17 +58,17 @@ func main() {
 			os.Exit(1)
 		}
 
-		// embedパスを計算（出力ディレクトリからの相対パス）
-		embedPath, err := filepath.Rel(outDir, file)
+		// ファイルパスを計算（出力ディレクトリからの相対パス）
+		relPath, err := filepath.Rel(outDir, file)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, fmt.Errorf("failed to get embed path for %s: %w", file, err))
+			fmt.Fprintln(os.Stderr, fmt.Errorf("failed to get relative path for %s: %w", file, err))
 			os.Exit(1)
 		}
 
 		units = append(units, gen.Unit{
 			TemplateName: templateName,
 			Pkg:          *pkg,
-			EmbedPath:    embedPath,
+			FilePath:     relPath,
 			Source:       string(src),
 		})
 	}

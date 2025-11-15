@@ -73,7 +73,7 @@ func TestEmit_BasicScaffoldAndTypes(t *testing.T) {
 	u := gen.Unit{
 		TemplateName: "tpl",
 		Pkg:          "x",
-		EmbedPath:    "tpl.tmpl",
+		FilePath:    "tpl.tmpl",
 		Source:       "{{ .User.Name }}\n{{ .Message }}\n",
 	}
 
@@ -169,7 +169,7 @@ func TestEmit_RangeAndIndex_TypesAndOrder(t *testing.T) {
 	u := gen.Unit{
 		TemplateName: "email",
 		Pkg:          "x",
-		EmbedPath:    "email.tmpl",
+		FilePath:    "email.tmpl",
 		Source:       "{{ range .Items }}{{ .Title }}{{ .ID }}{{ end }}\n{{ index .Meta \"env\" }}\n",
 	}
 	result, err := gen.Emit([]gen.Unit{u})
@@ -217,7 +217,7 @@ func TestEmit_RangeAndIndex_TypesAndOrder(t *testing.T) {
 }
 
 func TestEmit_Golden_Simple(t *testing.T) {
-	u := gen.Unit{TemplateName: "tpl", Pkg: "x", EmbedPath: "tpl.tmpl", Source: "{{ .User.Name }}\n{{ .Message }}\n"}
+	u := gen.Unit{TemplateName: "tpl", Pkg: "x", FilePath: "tpl.tmpl", Source: "{{ .User.Name }}\n{{ .Message }}\n"}
 	result, err := gen.Emit([]gen.Unit{u})
 	if err != nil {
 		t.Fatalf("Emit failed: %v", err)
@@ -252,7 +252,7 @@ func TestEmit_CompilesInTempModule(t *testing.T) {
 		t.Skip("skip on restricted platforms")
 	}
 
-	u := gen.Unit{TemplateName: "tpl", Pkg: "x", EmbedPath: "tpl.tmpl", Source: "Hello {{ .Message }}"}
+	u := gen.Unit{TemplateName: "tpl", Pkg: "x", FilePath: "tpl.tmpl", Source: "Hello {{ .Message }}"}
 	result, err := gen.Emit([]gen.Unit{u})
 	if err != nil {
 		t.Fatalf("Emit failed: %v", err)
@@ -291,7 +291,7 @@ func TestEmit_WithParamOverride_BasicTypes(t *testing.T) {
 	u := gen.Unit{
 		TemplateName: "tpl",
 		Pkg:          "x",
-		EmbedPath:    "tpl.tmpl",
+		FilePath:    "tpl.tmpl",
 		Source:       src,
 	}
 
@@ -345,7 +345,7 @@ func TestEmit_WithParamOverride_SliceType(t *testing.T) {
 	u := gen.Unit{
 		TemplateName: "tpl",
 		Pkg:          "x",
-		EmbedPath:    "tpl.tmpl",
+		FilePath:    "tpl.tmpl",
 		Source:       src,
 	}
 
@@ -387,5 +387,38 @@ func TestEmit_WithParamOverride_SliceType(t *testing.T) {
 	if !foundTitle {
 		t.Error("TplItemsItem.Title string not found")
 	}
+}
+
+func TestEmit_TemplateWithBacktick(t *testing.T) {
+	src := "Code example: `{{ .Code }}`"
+	u := gen.Unit{
+		TemplateName: "tpl",
+		Pkg:          "x",
+		FilePath:    "tpl.tmpl",
+		Source:       src,
+	}
+
+	result, err := gen.Emit([]gen.Unit{u})
+	if err != nil {
+		t.Fatalf("Emit failed: %v", err)
+	}
+
+	// SourcesCode should use double quotes instead of backticks
+	if strings.Contains(result.SourcesCode, "= `") {
+		t.Fatalf("SourcesCode should not use backticks when template contains backtick\n%s", result.SourcesCode)
+	}
+	if !strings.Contains(result.SourcesCode, "= \"") {
+		t.Fatalf("SourcesCode should use double quotes\n%s", result.SourcesCode)
+	}
+
+	// Verify it compiles and contains the original content
+	if !strings.Contains(result.SourcesCode, "Code example:") {
+		t.Fatalf("SourcesCode missing template content\n%s", result.SourcesCode)
+	}
+
+	// MainCode should parse correctly
+	parseCode(t, result.MainCode)
+	// SourcesCode should parse correctly
+	parseCode(t, result.SourcesCode)
 }
 

@@ -16,7 +16,7 @@ import (
 type Unit struct {
 	TemplateName string // テンプレート名 (例: "footer", "mail_invite/title")
 	Pkg          string // 出力パッケージ名
-	EmbedPath    string // go:embedディレクティブで使用するパス
+	FilePath     string // テンプレートファイルパス（情報として保持）
 	Source       string // テンプレート本文
 }
 
@@ -114,7 +114,7 @@ func prepare(units []Unit) (*emitPrepared, error) {
 			name:       templateName,
 			groupName:  groupName,
 			typeName:   typeName,
-			sourcePath: unit.EmbedPath,
+			sourcePath: unit.FilePath,
 			varName:    varName,
 			source:     unit.Source,
 			typed:      typed,
@@ -282,9 +282,19 @@ func generateTemplateNamespace(b *strings.Builder, p *emitPrepared) {
 func generateSourcesCode(b *strings.Builder, templates []tmpl) {
 	for _, t := range templates {
 		// 文字列リテラルとして埋め込む
-		// バッククォート内にバッククォートが含まれる場合は考慮が必要だが、
-		// テンプレートファイルに通常バッククォートは含まれないので単純な実装とする
-		write(b, "var %s = `%s`\n\n", t.varName, t.source)
+		// テンプレートにバッククォートが含まれる場合は、ダブルクォート文字列を使う
+		if strings.Contains(t.source, "`") {
+			// バッククォートが含まれる場合: エスケープして""で囲む
+			escaped := strings.ReplaceAll(t.source, `\`, `\\`)
+			escaped = strings.ReplaceAll(escaped, `"`, `\"`)
+			escaped = strings.ReplaceAll(escaped, "\n", `\n`)
+			escaped = strings.ReplaceAll(escaped, "\r", `\r`)
+			escaped = strings.ReplaceAll(escaped, "\t", `\t`)
+			write(b, "var %s = \"%s\"\n\n", t.varName, escaped)
+		} else {
+			// バッククォートが含まれない場合: そのまま``で囲む（可読性重視）
+			write(b, "var %s = `%s`\n\n", t.varName, t.source)
+		}
 	}
 }
 
