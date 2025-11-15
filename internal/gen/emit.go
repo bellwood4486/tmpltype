@@ -12,12 +12,12 @@ import (
 	"github.com/bellwood4486/tmpltype/internal/util"
 )
 
-// Unit は単一のテンプレート処理単位
-type Unit struct {
-	TemplateName string // テンプレート名 (例: "footer", "mail_invite/title")
-	Pkg          string // 出力パッケージ名
-	FilePath     string // テンプレートファイルパス（情報として保持）
-	Source       string // テンプレート本文
+// TemplateSpec は単一のテンプレート仕様
+type TemplateSpec struct {
+	Name     string // テンプレート名 (例: "footer", "mail_invite/title")
+	Pkg      string // 出力パッケージ名
+	FilePath string // テンプレートファイルパス（情報として保持）
+	Source   string // テンプレート本文
 }
 
 // tmpl は単一テンプレートのコード生成に必要な情報
@@ -57,12 +57,12 @@ func (p *emitPrepared) allTemplates() []tmpl {
 }
 
 // prepare はテンプレートをスキャンし、型を解決して、コード生成に必要なデータを準備する
-func prepare(units []Unit) (*emitPrepared, error) {
-	if len(units) == 0 {
-		return nil, fmt.Errorf("no units provided")
+func prepare(specs []TemplateSpec) (*emitPrepared, error) {
+	if len(specs) == 0 {
+		return nil, fmt.Errorf("no specs provided")
 	}
 
-	templates := make([]tmpl, 0, len(units))
+	templates := make([]tmpl, 0, len(specs))
 	allImports := make(map[string]struct{})
 
 	// デフォルトのimport
@@ -71,9 +71,9 @@ func prepare(units []Unit) (*emitPrepared, error) {
 	allImports["fmt"] = struct{}{}
 
 	// 各テンプレートを処理
-	for _, unit := range units {
+	for _, spec := range specs {
 		// テンプレート名はコマンド側で決定済み
-		templateName := unit.TemplateName
+		templateName := spec.Name
 
 		// グループ名を抽出 (スラッシュが含まれていればグループ)
 		var groupName string
@@ -98,15 +98,15 @@ func prepare(units []Unit) (*emitPrepared, error) {
 		varName := strings.ReplaceAll(templateName, "/", "_") + "TplSource"
 
 		// テンプレートをスキャン
-		sch, err := scan.ScanTemplate(unit.Source)
+		sch, err := scan.ScanTemplate(spec.Source)
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan template %s: %w", unit.TemplateName, err)
+			return nil, fmt.Errorf("failed to scan template %s: %w", spec.Name, err)
 		}
 
 		// 型解決
-		typed, err := typing.Resolve(sch, unit.Source)
+		typed, err := typing.Resolve(sch, spec.Source)
 		if err != nil {
-			return nil, fmt.Errorf("failed to resolve types for %s: %w", unit.TemplateName, err)
+			return nil, fmt.Errorf("failed to resolve types for %s: %w", spec.Name, err)
 		}
 
 		// テンプレートデータを追加
@@ -114,9 +114,9 @@ func prepare(units []Unit) (*emitPrepared, error) {
 			name:       templateName,
 			groupName:  groupName,
 			typeName:   typeName,
-			sourcePath: unit.FilePath,
+			sourcePath: spec.FilePath,
 			varName:    varName,
-			source:     unit.Source,
+			source:     spec.Source,
 			typed:      typed,
 		})
 	}
@@ -130,7 +130,7 @@ func prepare(units []Unit) (*emitPrepared, error) {
 	groups, flatTemplates := organizeGroups(templates)
 
 	return &emitPrepared{
-		pkg:           units[0].Pkg, // すべて同じパッケージ名のはず
+		pkg:           specs[0].Pkg, // すべて同じパッケージ名のはず
 		imports:       allImports,
 		groups:        groups,
 		flatTemplates: flatTemplates,
@@ -177,9 +177,9 @@ type EmitResult struct {
 
 // Emit は複数のテンプレートから2つの統合Goファイルを生成する
 // 単一テンプレートの場合も同じフォーマットで生成される
-func Emit(units []Unit) (*EmitResult, error) {
+func Emit(specs []TemplateSpec) (*EmitResult, error) {
 	// Phase 1: データ収集と準備
-	prepared, err := prepare(units)
+	prepared, err := prepare(specs)
 	if err != nil {
 		return nil, err
 	}

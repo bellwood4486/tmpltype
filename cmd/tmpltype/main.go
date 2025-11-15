@@ -41,7 +41,7 @@ func main() {
 	}
 
 	// 複数のテンプレートを処理
-	units := make([]gen.Unit, 0, len(files))
+	specs := make([]gen.TemplateSpec, 0, len(files))
 	outDir := filepath.Dir(*out)
 
 	for _, file := range files {
@@ -65,16 +65,16 @@ func main() {
 			os.Exit(1)
 		}
 
-		units = append(units, gen.Unit{
-			TemplateName: templateName,
-			Pkg:          *pkg,
-			FilePath:     relPath,
-			Source:       string(src),
+		specs = append(specs, gen.TemplateSpec{
+			Name:     templateName,
+			Pkg:      *pkg,
+			FilePath: relPath,
+			Source:   string(src),
 		})
 	}
 
 	// コード生成
-	result, err := gen.Emit(units)
+	result, err := gen.Emit(specs)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, fmt.Errorf("failed to emit: %w", err))
 		os.Exit(1)

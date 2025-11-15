@@ -70,14 +70,14 @@ func findFunc(f *ast.File, name string) *ast.FuncDecl {
 }
 
 func TestEmit_BasicScaffoldAndTypes(t *testing.T) {
-	u := gen.Unit{
-		TemplateName: "tpl",
+	u := gen.TemplateSpec{
+		Name: "tpl",
 		Pkg:          "x",
 		FilePath:    "tpl.tmpl",
 		Source:       "{{ .User.Name }}\n{{ .Message }}\n",
 	}
 
-	result, err := gen.Emit([]gen.Unit{u})
+	result, err := gen.Emit([]gen.TemplateSpec{u})
 	if err != nil {
 		t.Fatalf("Emit failed: %v", err)
 	}
@@ -166,13 +166,13 @@ func TestEmit_BasicScaffoldAndTypes(t *testing.T) {
 }
 
 func TestEmit_RangeAndIndex_TypesAndOrder(t *testing.T) {
-	u := gen.Unit{
-		TemplateName: "email",
+	u := gen.TemplateSpec{
+		Name: "email",
 		Pkg:          "x",
 		FilePath:    "email.tmpl",
 		Source:       "{{ range .Items }}{{ .Title }}{{ .ID }}{{ end }}\n{{ index .Meta \"env\" }}\n",
 	}
-	result, err := gen.Emit([]gen.Unit{u})
+	result, err := gen.Emit([]gen.TemplateSpec{u})
 	if err != nil {
 		t.Fatalf("Emit failed: %v", err)
 	}
@@ -217,8 +217,8 @@ func TestEmit_RangeAndIndex_TypesAndOrder(t *testing.T) {
 }
 
 func TestEmit_Golden_Simple(t *testing.T) {
-	u := gen.Unit{TemplateName: "tpl", Pkg: "x", FilePath: "tpl.tmpl", Source: "{{ .User.Name }}\n{{ .Message }}\n"}
-	result, err := gen.Emit([]gen.Unit{u})
+	u := gen.TemplateSpec{Name: "tpl", Pkg: "x", FilePath: "tpl.tmpl", Source: "{{ .User.Name }}\n{{ .Message }}\n"}
+	result, err := gen.Emit([]gen.TemplateSpec{u})
 	if err != nil {
 		t.Fatalf("Emit failed: %v", err)
 	}
@@ -252,8 +252,8 @@ func TestEmit_CompilesInTempModule(t *testing.T) {
 		t.Skip("skip on restricted platforms")
 	}
 
-	u := gen.Unit{TemplateName: "tpl", Pkg: "x", FilePath: "tpl.tmpl", Source: "Hello {{ .Message }}"}
-	result, err := gen.Emit([]gen.Unit{u})
+	u := gen.TemplateSpec{Name: "tpl", Pkg: "x", FilePath: "tpl.tmpl", Source: "Hello {{ .Message }}"}
+	result, err := gen.Emit([]gen.TemplateSpec{u})
 	if err != nil {
 		t.Fatalf("Emit failed: %v", err)
 	}
@@ -288,14 +288,14 @@ func TestEmit_WithParamOverride_BasicTypes(t *testing.T) {
 {{ .User.Name }} is {{ .User.Age }} years old.
 {{ if .User.Email }}Email: {{ .User.Email }}{{ end }}
 `
-	u := gen.Unit{
-		TemplateName: "tpl",
+	u := gen.TemplateSpec{
+		Name: "tpl",
 		Pkg:          "x",
 		FilePath:    "tpl.tmpl",
 		Source:       src,
 	}
 
-	result, err := gen.Emit([]gen.Unit{u})
+	result, err := gen.Emit([]gen.TemplateSpec{u})
 	if err != nil {
 		t.Fatalf("Emit failed: %v", err)
 	}
@@ -342,14 +342,14 @@ func TestEmit_WithParamOverride_SliceType(t *testing.T) {
 {{/* @param Items []struct{ID int64; Title string} */}}
 {{ range .Items }}{{ .ID }}: {{ .Title }}{{ end }}
 `
-	u := gen.Unit{
-		TemplateName: "tpl",
+	u := gen.TemplateSpec{
+		Name: "tpl",
 		Pkg:          "x",
 		FilePath:    "tpl.tmpl",
 		Source:       src,
 	}
 
-	result, err := gen.Emit([]gen.Unit{u})
+	result, err := gen.Emit([]gen.TemplateSpec{u})
 	if err != nil {
 		t.Fatalf("Emit failed: %v", err)
 	}
@@ -391,14 +391,14 @@ func TestEmit_WithParamOverride_SliceType(t *testing.T) {
 
 func TestEmit_TemplateWithBacktick(t *testing.T) {
 	src := "Code example: `{{ .Code }}`"
-	u := gen.Unit{
-		TemplateName: "tpl",
+	u := gen.TemplateSpec{
+		Name: "tpl",
 		Pkg:          "x",
 		FilePath:    "tpl.tmpl",
 		Source:       src,
 	}
 
-	result, err := gen.Emit([]gen.Unit{u})
+	result, err := gen.Emit([]gen.TemplateSpec{u})
 	if err != nil {
 		t.Fatalf("Emit failed: %v", err)
 	}
