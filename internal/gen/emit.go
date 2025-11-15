@@ -12,6 +12,10 @@ import (
 	"github.com/bellwood4486/tmpltype/internal/util"
 )
 
+// ============================================================
+// Public Types
+// ============================================================
+
 // TemplateSpec は単一のテンプレート仕様
 type TemplateSpec struct {
 	Name     string // テンプレート名 (例: "footer", "mail_invite/title")
@@ -19,6 +23,17 @@ type TemplateSpec struct {
 	FilePath string // テンプレートファイルパス（情報として保持）
 	Source   string // テンプレート本文
 }
+
+// EmitResult はコード生成の結果を保持する
+type EmitResult struct {
+	MainCode    string   // 型定義とRender関数
+	SourcesCode string   // テンプレート文字列リテラル
+	Warnings    []string // 警告メッセージ
+}
+
+// ============================================================
+// Private Types
+// ============================================================
 
 // tmpl は単一テンプレートのコード生成に必要な情報
 type tmpl struct {
@@ -55,6 +70,56 @@ func (p *emitPrepared) allTemplates() []tmpl {
 	}
 	return all
 }
+
+// ============================================================
+// Public API
+// ============================================================
+
+// Emit は複数のテンプレートから2つの統合Goファイルを生成する
+// 単一テンプレートの場合も同じフォーマットで生成される
+func Emit(specs []TemplateSpec) (*EmitResult, error) {
+	// Phase 1: データ収集と準備
+	prepared, err := prepare(specs)
+	if err != nil {
+		return nil, err
+	}
+
+	// Phase 2: メインコード生成
+	var mainBuilder strings.Builder
+	generateHeader(&mainBuilder, prepared.pkg)
+	generateMainImports(&mainBuilder, prepared.imports)
+	generateTemplateNamespace(&mainBuilder, prepared)
+	generateTemplateInitialization(&mainBuilder, prepared)
+	generateTemplatesFunction(&mainBuilder)
+	generateGenericRenderFunction(&mainBuilder)
+	generateTemplateBlocks(&mainBuilder, prepared.allTemplates())
+
+	// Phase 3: テンプレート文字列リテラルファイル生成
+	var sourcesBuilder strings.Builder
+	var warnings []string
+	generateHeader(&sourcesBuilder, prepared.pkg)
+	warnings = generateSourcesCode(&sourcesBuilder, prepared.allTemplates())
+
+	// Phase 4: フォーマット
+	mainCode, err := formatCode(mainBuilder.String())
+	if err != nil {
+		return nil, err
+	}
+	sourcesCode, err := formatCode(sourcesBuilder.String())
+	if err != nil {
+		return nil, err
+	}
+
+	return &EmitResult{
+		MainCode:    mainCode,
+		SourcesCode: sourcesCode,
+		Warnings:    warnings,
+	}, nil
+}
+
+// ============================================================
+// Preparation Phase
+// ============================================================
 
 // prepare はテンプレートをスキャンし、型を解決して、コード生成に必要なデータを準備する
 func prepare(specs []TemplateSpec) (*emitPrepared, error) {
@@ -168,54 +233,78 @@ func organizeGroups(templates []tmpl) ([]tmplGroup, []tmpl) {
 	return groups, flatTemplates
 }
 
-// EmitResult はコード生成の結果を保持する
-type EmitResult struct {
-	MainCode    string   // 型定義とRender関数
-	SourcesCode string   // テンプレート文字列リテラル
-	Warnings    []string // 警告メッセージ
+// ============================================================
+// Code Generation - Utility Functions
+// ============================================================
+
+// write は strings.Builder への書き込みヘルパー
+// 万が一失敗した場合は panic する
+func write(b *strings.Builder, format string, args ...any) {
+	_, err := fmt.Fprintf(b, format, args...)
+	if err != nil {
+		panic(err)
+	}
 }
 
-// Emit は複数のテンプレートから2つの統合Goファイルを生成する
-// 単一テンプレートの場合も同じフォーマットで生成される
-func Emit(specs []TemplateSpec) (*EmitResult, error) {
-	// Phase 1: データ収集と準備
-	prepared, err := prepare(specs)
+// formatCode はgo/formatでコードをフォーマットする
+func formatCode(code string) (string, error) {
+	formatted, err := format.Source([]byte(code))
 	if err != nil {
-		return nil, err
+		return "", fmt.Errorf("failed to format generated code: %w", err)
 	}
-
-	// Phase 2: メインコード生成
-	var mainBuilder strings.Builder
-	generateHeader(&mainBuilder, prepared.pkg)
-	generateMainImports(&mainBuilder, prepared.imports)
-	generateTemplateNamespace(&mainBuilder, prepared)
-	generateTemplateInitialization(&mainBuilder, prepared)
-	generateTemplatesFunction(&mainBuilder)
-	generateGenericRenderFunction(&mainBuilder)
-	generateTemplateBlocks(&mainBuilder, prepared.allTemplates())
-
-	// Phase 3: テンプレート文字列リテラルファイル生成
-	var sourcesBuilder strings.Builder
-	var warnings []string
-	generateHeader(&sourcesBuilder, prepared.pkg)
-	warnings = generateSourcesCode(&sourcesBuilder, prepared.allTemplates())
-
-	// Phase 4: フォーマット
-	mainCode, err := formatCode(mainBuilder.String())
-	if err != nil {
-		return nil, err
-	}
-	sourcesCode, err := formatCode(sourcesBuilder.String())
-	if err != nil {
-		return nil, err
-	}
-
-	return &EmitResult{
-		MainCode:    mainCode,
-		SourcesCode: sourcesCode,
-		Warnings:    warnings,
-	}, nil
+	return string(formatted), nil
 }
+
+// adjustTypeForTemplate は型名をテンプレート固有に調整する
+func adjustTypeForTemplate(goType string, templatePrefix string) string {
+	// 名前付き型への参照を調整
+	// 例: "[]ItemsItem" -> "[]UserItemsItem" (Userテンプレートの場合)
+	// これは簡略化された実装。実際にはより複雑な型の処理が必要
+
+	// スライスの場合
+	if strings.HasPrefix(goType, "[]") {
+		elemType := goType[2:]
+		if !isBuiltinType(elemType) && !strings.Contains(elemType, ".") {
+			// カスタム型の場合、プレフィックスを付ける
+			return "[]" + templatePrefix + elemType
+		}
+	}
+
+	// マップの場合
+	if strings.HasPrefix(goType, "map[string]") {
+		elemType := goType[11:] // "map[string]" の後の部分
+		if !isBuiltinType(elemType) && !strings.Contains(elemType, ".") {
+			return "map[string]" + templatePrefix + elemType
+		}
+	}
+
+	// 単純な名前付き型の場合
+	if !isBuiltinType(goType) && !strings.Contains(goType, ".") &&
+		!strings.Contains(goType, "[") && !strings.HasPrefix(goType, "*") {
+		return templatePrefix + goType
+	}
+
+	return goType
+}
+
+func isBuiltinType(typeName string) bool {
+	builtins := []string{
+		"string", "int", "int8", "int16", "int32", "int64",
+		"uint", "uint8", "uint16", "uint32", "uint64",
+		"float32", "float64", "bool", "byte", "rune", "any",
+		"time.Time", "error",
+	}
+	for _, b := range builtins {
+		if typeName == b {
+			return true
+		}
+	}
+	return false
+}
+
+// ============================================================
+// Code Generation - Header and Imports
+// ============================================================
 
 // generateHeader はパッケージ宣言とコメントを生成する
 func generateHeader(b *strings.Builder, pkg string) {
@@ -232,6 +321,10 @@ func generateMainImports(b *strings.Builder, imports map[string]struct{}) {
 	}
 	write(b, ")\n\n")
 }
+
+// ============================================================
+// Code Generation - Template Namespace
+// ============================================================
 
 // generateTemplateNamespace はTemplateName型と名前空間を生成する
 func generateTemplateNamespace(b *strings.Builder, p *emitPrepared) {
@@ -281,6 +374,10 @@ func generateTemplateNamespace(b *strings.Builder, p *emitPrepared) {
 	write(b, "}\n\n")
 }
 
+// ============================================================
+// Code Generation - Template Sources
+// ============================================================
+
 // generateSourcesCode は各テンプレートの文字列リテラルを生成する
 func generateSourcesCode(b *strings.Builder, templates []tmpl) []string {
 	var warnings []string
@@ -306,6 +403,10 @@ func generateSourcesCode(b *strings.Builder, templates []tmpl) []string {
 	}
 	return warnings
 }
+
+// ============================================================
+// Code Generation - Template Initialization
+// ============================================================
 
 // generateTemplateInitialization はテンプレート初期化のためのヘルパー関数とマップを生成する
 func generateTemplateInitialization(b *strings.Builder, p *emitPrepared) {
@@ -337,6 +438,10 @@ func generateTemplateInitialization(b *strings.Builder, p *emitPrepared) {
 	write(b, "}\n\n")
 }
 
+// ============================================================
+// Code Generation - Public Functions
+// ============================================================
+
 // generateTemplatesFunction はTemplates()関数を生成する
 func generateTemplatesFunction(b *strings.Builder) {
 	write(b, "// Templates returns a map of all templates\n")
@@ -356,6 +461,10 @@ func generateGenericRenderFunction(b *strings.Builder) {
 	write(b, "\treturn tmpl.Execute(w, data)\n")
 	write(b, "}\n\n")
 }
+
+// ============================================================
+// Code Generation - Template-Specific Blocks
+// ============================================================
 
 // generateTemplateBlocks は各テンプレートごとの型定義とRender関数を生成する
 func generateTemplateBlocks(b *strings.Builder, templates []tmpl) {
@@ -433,70 +542,4 @@ func generateRenderFunction(b *strings.Builder, t tmpl) {
 	write(b, "\t}\n")
 	write(b, "\treturn tmpl.Execute(w, p)\n")
 	write(b, "}\n\n")
-}
-
-// formatCode はgo/formatでコードをフォーマットする
-func formatCode(code string) (string, error) {
-	formatted, err := format.Source([]byte(code))
-	if err != nil {
-		return "", fmt.Errorf("failed to format generated code: %w", err)
-	}
-	return string(formatted), nil
-}
-
-
-// adjustTypeForTemplate は型名をテンプレート固有に調整する
-func adjustTypeForTemplate(goType string, templatePrefix string) string {
-	// 名前付き型への参照を調整
-	// 例: "[]ItemsItem" -> "[]UserItemsItem" (Userテンプレートの場合)
-	// これは簡略化された実装。実際にはより複雑な型の処理が必要
-
-	// スライスの場合
-	if strings.HasPrefix(goType, "[]") {
-		elemType := goType[2:]
-		if !isBuiltinType(elemType) && !strings.Contains(elemType, ".") {
-			// カスタム型の場合、プレフィックスを付ける
-			return "[]" + templatePrefix + elemType
-		}
-	}
-
-	// マップの場合
-	if strings.HasPrefix(goType, "map[string]") {
-		elemType := goType[11:] // "map[string]" の後の部分
-		if !isBuiltinType(elemType) && !strings.Contains(elemType, ".") {
-			return "map[string]" + templatePrefix + elemType
-		}
-	}
-
-	// 単純な名前付き型の場合
-	if !isBuiltinType(goType) && !strings.Contains(goType, ".") &&
-		!strings.Contains(goType, "[") && !strings.HasPrefix(goType, "*") {
-		return templatePrefix + goType
-	}
-
-	return goType
-}
-
-func isBuiltinType(typeName string) bool {
-	builtins := []string{
-		"string", "int", "int8", "int16", "int32", "int64",
-		"uint", "uint8", "uint16", "uint32", "uint64",
-		"float32", "float64", "bool", "byte", "rune", "any",
-		"time.Time", "error",
-	}
-	for _, b := range builtins {
-		if typeName == b {
-			return true
-		}
-	}
-	return false
-}
-
-// write は strings.Builder への書き込みヘルパー
-// 万が一失敗した場合は panic する
-func write(b *strings.Builder, format string, args ...any) {
-	_, err := fmt.Fprintf(b, format, args...)
-	if err != nil {
-		panic(err)
-	}
 }
