@@ -80,6 +80,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	// 警告を出力
+	for _, warning := range result.Warnings {
+		fmt.Fprintln(os.Stderr, warning)
+	}
+
 	// メインファイルを書き込み
 	if err := os.WriteFile(*out, []byte(result.MainCode), 0644); err != nil {
 		fmt.Fprintln(os.Stderr, err)

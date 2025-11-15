@@ -170,8 +170,9 @@ func organizeGroups(templates []tmpl) ([]tmplGroup, []tmpl) {
 
 // EmitResult はコード生成の結果を保持する
 type EmitResult struct {
-	MainCode    string // 型定義とRender関数
-	SourcesCode string // テンプレート文字列リテラル
+	MainCode    string   // 型定義とRender関数
+	SourcesCode string   // テンプレート文字列リテラル
+	Warnings    []string // 警告メッセージ
 }
 
 // Emit は複数のテンプレートから2つの統合Goファイルを生成する
@@ -195,8 +196,9 @@ func Emit(units []Unit) (*EmitResult, error) {
 
 	// Phase 3: テンプレート文字列リテラルファイル生成
 	var sourcesBuilder strings.Builder
+	var warnings []string
 	generateHeader(&sourcesBuilder, prepared.pkg)
-	generateSourcesCode(&sourcesBuilder, prepared.allTemplates())
+	warnings = generateSourcesCode(&sourcesBuilder, prepared.allTemplates())
 
 	// Phase 4: フォーマット
 	mainCode, err := formatCode(mainBuilder.String())
@@ -211,6 +213,7 @@ func Emit(units []Unit) (*EmitResult, error) {
 	return &EmitResult{
 		MainCode:    mainCode,
 		SourcesCode: sourcesCode,
+		Warnings:    warnings,
 	}, nil
 }
 
@@ -279,11 +282,15 @@ func generateTemplateNamespace(b *strings.Builder, p *emitPrepared) {
 }
 
 // generateSourcesCode は各テンプレートの文字列リテラルを生成する
-func generateSourcesCode(b *strings.Builder, templates []tmpl) {
+func generateSourcesCode(b *strings.Builder, templates []tmpl) []string {
+	var warnings []string
 	for _, t := range templates {
 		// 文字列リテラルとして埋め込む
 		// テンプレートにバッククォートが含まれる場合は、ダブルクォート文字列を使う
 		if strings.Contains(t.source, "`") {
+			// 警告メッセージを追加
+			warnings = append(warnings, fmt.Sprintf("Warn: template '%s' contains backticks, using escaped format", t.name))
+
 			// バッククォートが含まれる場合: エスケープして""で囲む
 			escaped := strings.ReplaceAll(t.source, `\`, `\\`)
 			escaped = strings.ReplaceAll(escaped, `"`, `\"`)
@@ -296,6 +303,7 @@ func generateSourcesCode(b *strings.Builder, templates []tmpl) {
 			write(b, "var %s = `%s`\n\n", t.varName, t.source)
 		}
 	}
+	return warnings
 }
 
 // generateTemplateInitialization はテンプレート初期化のためのヘルパー関数とマップを生成する
