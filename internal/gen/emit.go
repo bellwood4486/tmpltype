@@ -220,15 +220,11 @@ func generateHeader(b *strings.Builder, pkg string) {
 	write(b, "package %s\n\n", pkg)
 }
 
-// generateMainImports はメインファイルのimportセクションを生成する（embedを除外）
+// generateMainImports はメインファイルのimportセクションを生成する
 func generateMainImports(b *strings.Builder, imports map[string]struct{}) {
 	write(b, "import (\n")
 	keys := slices.Sorted(maps.Keys(imports))
 	for _, k := range keys {
-		// embedは不要なので除外
-		if k == "embed" {
-			continue
-		}
 		write(b, "\t%q\n", k)
 	}
 	write(b, ")\n\n")
