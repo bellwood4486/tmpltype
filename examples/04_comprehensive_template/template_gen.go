@@ -2,7 +2,6 @@
 package main
 
 import (
-	_ "embed"
 	"fmt"
 	"io"
 	"text/template"
@@ -23,18 +22,6 @@ var Template = struct {
 	Collections: "collections",
 	ControlFlow: "control_flow",
 }
-
-//go:embed templates/advanced.tmpl
-var advancedTplSource string
-
-//go:embed templates/basic_fields.tmpl
-var basic_fieldsTplSource string
-
-//go:embed templates/collections.tmpl
-var collectionsTplSource string
-
-//go:embed templates/control_flow.tmpl
-var control_flowTplSource string
 
 func newTemplate(name TemplateName, source string) *template.Template {
 	return template.Must(template.New(string(name)).Option("missingkey=error").Parse(source))

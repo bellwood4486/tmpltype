@@ -2,7 +2,6 @@
 package main
 
 import (
-	_ "embed"
 	"fmt"
 	"io"
 	"text/template"
@@ -50,27 +49,6 @@ var Template = struct {
 		Title:   "mail_invite/title",
 	},
 }
-
-//go:embed templates/footer.tmpl
-var footerTplSource string
-
-//go:embed templates/02_mail_account_created/content.tmpl
-var mail_account_created_contentTplSource string
-
-//go:embed templates/02_mail_account_created/title.tmpl
-var mail_account_created_titleTplSource string
-
-//go:embed templates/03_mail_article_created/content.tmpl
-var mail_article_created_contentTplSource string
-
-//go:embed templates/03_mail_article_created/title.tmpl
-var mail_article_created_titleTplSource string
-
-//go:embed templates/01_mail_invite/content.tmpl
-var mail_invite_contentTplSource string
-
-//go:embed templates/01_mail_invite/title.tmpl
-var mail_invite_titleTplSource string
 
 func newTemplate(name TemplateName, source string) *template.Template {
 	return template.Must(template.New(string(name)).Option("missingkey=error").Parse(source))

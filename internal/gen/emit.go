@@ -25,8 +25,9 @@ type tmpl struct {
 	name       string              // テンプレート名
 	groupName  string              // グループ名（空ならフラット）
 	typeName   string              // 生成する型名
-	sourcePath string              // テンプレートファイルパス
-	varName    string              // embed変数名
+	sourcePath string              // テンプレートファイルパス（embedでは使わないが、情報として保持）
+	varName    string              // テンプレート変数名
+	source     string              // テンプレート本文
 	typed      *typing.TypedSchema // 型情報
 }
 
@@ -67,7 +68,6 @@ func prepare(units []Unit) (*emitPrepared, error) {
 	// デフォルトのimport
 	allImports["io"] = struct{}{}
 	allImports["text/template"] = struct{}{}
-	allImports["embed"] = struct{}{}
 	allImports["fmt"] = struct{}{}
 
 	// 各テンプレートを処理
@@ -116,6 +116,7 @@ func prepare(units []Unit) (*emitPrepared, error) {
 			typeName:   typeName,
 			sourcePath: unit.EmbedPath,
 			varName:    varName,
+			source:     unit.Source,
 			typed:      typed,
 		})
 	}
@@ -167,28 +168,50 @@ func organizeGroups(templates []tmpl) ([]tmplGroup, []tmpl) {
 	return groups, flatTemplates
 }
 
-// Emit は複数のテンプレートから1つの統合Goファイルを生成する
+// EmitResult はコード生成の結果を保持する
+type EmitResult struct {
+	MainCode    string // 型定義とRender関数
+	SourcesCode string // テンプレート文字列リテラル
+}
+
+// Emit は複数のテンプレートから2つの統合Goファイルを生成する
 // 単一テンプレートの場合も同じフォーマットで生成される
-func Emit(units []Unit) (string, error) {
+func Emit(units []Unit) (*EmitResult, error) {
 	// Phase 1: データ収集と準備
 	prepared, err := prepare(units)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	// Phase 2: コード生成
-	var b strings.Builder
-	generateHeader(&b, prepared.pkg)
-	generateImports(&b, prepared.imports)
-	generateTemplateNamespace(&b, prepared)
-	generateEmbedDeclarations(&b, prepared.allTemplates())
-	generateTemplateInitialization(&b, prepared)
-	generateTemplatesFunction(&b)
-	generateGenericRenderFunction(&b)
-	generateTemplateBlocks(&b, prepared.allTemplates())
+	// Phase 2: メインコード生成
+	var mainBuilder strings.Builder
+	generateHeader(&mainBuilder, prepared.pkg)
+	generateMainImports(&mainBuilder, prepared.imports)
+	generateTemplateNamespace(&mainBuilder, prepared)
+	generateTemplateInitialization(&mainBuilder, prepared)
+	generateTemplatesFunction(&mainBuilder)
+	generateGenericRenderFunction(&mainBuilder)
+	generateTemplateBlocks(&mainBuilder, prepared.allTemplates())
 
-	// Phase 3: フォーマット
-	return formatCode(b.String())
+	// Phase 3: ソースコード生成
+	var sourcesBuilder strings.Builder
+	generateHeader(&sourcesBuilder, prepared.pkg)
+	generateSourcesCode(&sourcesBuilder, prepared.allTemplates())
+
+	// Phase 4: フォーマット
+	mainCode, err := formatCode(mainBuilder.String())
+	if err != nil {
+		return nil, err
+	}
+	sourcesCode, err := formatCode(sourcesBuilder.String())
+	if err != nil {
+		return nil, err
+	}
+
+	return &EmitResult{
+		MainCode:    mainCode,
+		SourcesCode: sourcesCode,
+	}, nil
 }
 
 // generateHeader はパッケージ宣言とコメントを生成する
@@ -197,16 +220,16 @@ func generateHeader(b *strings.Builder, pkg string) {
 	write(b, "package %s\n\n", pkg)
 }
 
-// generateImports はimportセクションを生成する
-func generateImports(b *strings.Builder, imports map[string]struct{}) {
+// generateMainImports はメインファイルのimportセクションを生成する（embedを除外）
+func generateMainImports(b *strings.Builder, imports map[string]struct{}) {
 	write(b, "import (\n")
 	keys := slices.Sorted(maps.Keys(imports))
 	for _, k := range keys {
+		// embedは不要なので除外
 		if k == "embed" {
-			write(b, "\t_ %q\n", k)
-		} else {
-			write(b, "\t%q\n", k)
+			continue
 		}
+		write(b, "\t%q\n", k)
 	}
 	write(b, ")\n\n")
 }
@@ -259,11 +282,13 @@ func generateTemplateNamespace(b *strings.Builder, p *emitPrepared) {
 	write(b, "}\n\n")
 }
 
-// generateEmbedDeclarations は各テンプレートのembed宣言を生成する
-func generateEmbedDeclarations(b *strings.Builder, templates []tmpl) {
+// generateSourcesCode は各テンプレートの文字列リテラルを生成する
+func generateSourcesCode(b *strings.Builder, templates []tmpl) {
 	for _, t := range templates {
-		write(b, "//go:embed %s\n", t.sourcePath)
-		write(b, "var %s string\n\n", t.varName)
+		// 文字列リテラルとして埋め込む
+		// バッククォート内にバッククォートが含まれる場合は考慮が必要だが、
+		// テンプレートファイルに通常バッククォートは含まれないので単純な実装とする
+		write(b, "var %s = `%s`\n\n", t.varName, t.source)
 	}
 }
 

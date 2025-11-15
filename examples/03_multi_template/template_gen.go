@@ -2,7 +2,6 @@
 package main
 
 import (
-	_ "embed"
 	"fmt"
 	"io"
 	"text/template"
@@ -21,15 +20,6 @@ var Template = struct {
 	Header: "header",
 	Nav:    "nav",
 }
-
-//go:embed templates/footer.tmpl
-var footerTplSource string
-
-//go:embed templates/header.tmpl
-var headerTplSource string
-
-//go:embed templates/nav.tmpl
-var navTplSource string
 
 func newTemplate(name TemplateName, source string) *template.Template {
 	return template.Must(template.New(string(name)).Option("missingkey=error").Parse(source))

@@ -2,7 +2,6 @@
 package x
 
 import (
-	_ "embed"
 	"fmt"
 	"io"
 	"text/template"
@@ -17,9 +16,6 @@ var Template = struct {
 }{
 	Tpl: "tpl",
 }
-
-//go:embed tpl.tmpl
-var tplTplSource string
 
 func newTemplate(name TemplateName, source string) *template.Template {
 	return template.Must(template.New(string(name)).Option("missingkey=error").Parse(source))
