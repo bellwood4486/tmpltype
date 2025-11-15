@@ -12,12 +12,12 @@ import (
 	"github.com/bellwood4486/tmpltype/internal/util"
 )
 
-// Unit は単一のテンプレート処理単位
-type Unit struct {
-	TemplateName string // テンプレート名 (例: "footer", "mail_invite/title")
-	Pkg          string // 出力パッケージ名
-	EmbedPath    string // go:embedディレクティブで使用するパス
-	Source       string // テンプレート本文
+// TemplateSpec は単一のテンプレート仕様
+type TemplateSpec struct {
+	Name     string // テンプレート名 (例: "footer", "mail_invite/title")
+	Pkg      string // 出力パッケージ名
+	FilePath string // テンプレートファイルパス（情報として保持）
+	Source   string // テンプレート本文
 }
 
 // tmpl は単一テンプレートのコード生成に必要な情報
@@ -25,8 +25,9 @@ type tmpl struct {
 	name       string              // テンプレート名
 	groupName  string              // グループ名（空ならフラット）
 	typeName   string              // 生成する型名
-	sourcePath string              // テンプレートファイルパス
-	varName    string              // embed変数名
+	sourcePath string              // テンプレートファイルパス（embedでは使わないが、情報として保持）
+	varName    string              // テンプレート変数名
+	source     string              // テンプレート本文
 	typed      *typing.TypedSchema // 型情報
 }
 
@@ -56,24 +57,23 @@ func (p *emitPrepared) allTemplates() []tmpl {
 }
 
 // prepare はテンプレートをスキャンし、型を解決して、コード生成に必要なデータを準備する
-func prepare(units []Unit) (*emitPrepared, error) {
-	if len(units) == 0 {
-		return nil, fmt.Errorf("no units provided")
+func prepare(specs []TemplateSpec) (*emitPrepared, error) {
+	if len(specs) == 0 {
+		return nil, fmt.Errorf("no specs provided")
 	}
 
-	templates := make([]tmpl, 0, len(units))
+	templates := make([]tmpl, 0, len(specs))
 	allImports := make(map[string]struct{})
 
 	// デフォルトのimport
 	allImports["io"] = struct{}{}
 	allImports["text/template"] = struct{}{}
-	allImports["embed"] = struct{}{}
 	allImports["fmt"] = struct{}{}
 
 	// 各テンプレートを処理
-	for _, unit := range units {
+	for _, spec := range specs {
 		// テンプレート名はコマンド側で決定済み
-		templateName := unit.TemplateName
+		templateName := spec.Name
 
 		// グループ名を抽出 (スラッシュが含まれていればグループ)
 		var groupName string
@@ -98,15 +98,15 @@ func prepare(units []Unit) (*emitPrepared, error) {
 		varName := strings.ReplaceAll(templateName, "/", "_") + "TplSource"
 
 		// テンプレートをスキャン
-		sch, err := scan.ScanTemplate(unit.Source)
+		sch, err := scan.ScanTemplate(spec.Source)
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan template %s: %w", unit.TemplateName, err)
+			return nil, fmt.Errorf("failed to scan template %s: %w", spec.Name, err)
 		}
 
 		// 型解決
-		typed, err := typing.Resolve(sch, unit.Source)
+		typed, err := typing.Resolve(sch, spec.Source)
 		if err != nil {
-			return nil, fmt.Errorf("failed to resolve types for %s: %w", unit.TemplateName, err)
+			return nil, fmt.Errorf("failed to resolve types for %s: %w", spec.Name, err)
 		}
 
 		// テンプレートデータを追加
@@ -114,8 +114,9 @@ func prepare(units []Unit) (*emitPrepared, error) {
 			name:       templateName,
 			groupName:  groupName,
 			typeName:   typeName,
-			sourcePath: unit.EmbedPath,
+			sourcePath: spec.FilePath,
 			varName:    varName,
+			source:     spec.Source,
 			typed:      typed,
 		})
 	}
@@ -129,7 +130,7 @@ func prepare(units []Unit) (*emitPrepared, error) {
 	groups, flatTemplates := organizeGroups(templates)
 
 	return &emitPrepared{
-		pkg:           units[0].Pkg, // すべて同じパッケージ名のはず
+		pkg:           specs[0].Pkg, // すべて同じパッケージ名のはず
 		imports:       allImports,
 		groups:        groups,
 		flatTemplates: flatTemplates,
@@ -167,28 +168,53 @@ func organizeGroups(templates []tmpl) ([]tmplGroup, []tmpl) {
 	return groups, flatTemplates
 }
 
-// Emit は複数のテンプレートから1つの統合Goファイルを生成する
+// EmitResult はコード生成の結果を保持する
+type EmitResult struct {
+	MainCode    string   // 型定義とRender関数
+	SourcesCode string   // テンプレート文字列リテラル
+	Warnings    []string // 警告メッセージ
+}
+
+// Emit は複数のテンプレートから2つの統合Goファイルを生成する
 // 単一テンプレートの場合も同じフォーマットで生成される
-func Emit(units []Unit) (string, error) {
+func Emit(specs []TemplateSpec) (*EmitResult, error) {
 	// Phase 1: データ収集と準備
-	prepared, err := prepare(units)
+	prepared, err := prepare(specs)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	// Phase 2: コード生成
-	var b strings.Builder
-	generateHeader(&b, prepared.pkg)
-	generateImports(&b, prepared.imports)
-	generateTemplateNamespace(&b, prepared)
-	generateEmbedDeclarations(&b, prepared.allTemplates())
-	generateTemplateInitialization(&b, prepared)
-	generateTemplatesFunction(&b)
-	generateGenericRenderFunction(&b)
-	generateTemplateBlocks(&b, prepared.allTemplates())
+	// Phase 2: メインコード生成
+	var mainBuilder strings.Builder
+	generateHeader(&mainBuilder, prepared.pkg)
+	generateMainImports(&mainBuilder, prepared.imports)
+	generateTemplateNamespace(&mainBuilder, prepared)
+	generateTemplateInitialization(&mainBuilder, prepared)
+	generateTemplatesFunction(&mainBuilder)
+	generateGenericRenderFunction(&mainBuilder)
+	generateTemplateBlocks(&mainBuilder, prepared.allTemplates())
 
-	// Phase 3: フォーマット
-	return formatCode(b.String())
+	// Phase 3: テンプレート文字列リテラルファイル生成
+	var sourcesBuilder strings.Builder
+	var warnings []string
+	generateHeader(&sourcesBuilder, prepared.pkg)
+	warnings = generateSourcesCode(&sourcesBuilder, prepared.allTemplates())
+
+	// Phase 4: フォーマット
+	mainCode, err := formatCode(mainBuilder.String())
+	if err != nil {
+		return nil, err
+	}
+	sourcesCode, err := formatCode(sourcesBuilder.String())
+	if err != nil {
+		return nil, err
+	}
+
+	return &EmitResult{
+		MainCode:    mainCode,
+		SourcesCode: sourcesCode,
+		Warnings:    warnings,
+	}, nil
 }
 
 // generateHeader はパッケージ宣言とコメントを生成する
@@ -197,16 +223,12 @@ func generateHeader(b *strings.Builder, pkg string) {
 	write(b, "package %s\n\n", pkg)
 }
 
-// generateImports はimportセクションを生成する
-func generateImports(b *strings.Builder, imports map[string]struct{}) {
+// generateMainImports はメインファイルのimportセクションを生成する
+func generateMainImports(b *strings.Builder, imports map[string]struct{}) {
 	write(b, "import (\n")
 	keys := slices.Sorted(maps.Keys(imports))
 	for _, k := range keys {
-		if k == "embed" {
-			write(b, "\t_ %q\n", k)
-		} else {
-			write(b, "\t%q\n", k)
-		}
+		write(b, "\t%q\n", k)
 	}
 	write(b, ")\n\n")
 }
@@ -259,12 +281,30 @@ func generateTemplateNamespace(b *strings.Builder, p *emitPrepared) {
 	write(b, "}\n\n")
 }
 
-// generateEmbedDeclarations は各テンプレートのembed宣言を生成する
-func generateEmbedDeclarations(b *strings.Builder, templates []tmpl) {
+// generateSourcesCode は各テンプレートの文字列リテラルを生成する
+func generateSourcesCode(b *strings.Builder, templates []tmpl) []string {
+	var warnings []string
 	for _, t := range templates {
-		write(b, "//go:embed %s\n", t.sourcePath)
-		write(b, "var %s string\n\n", t.varName)
+		// 文字列リテラルとして埋め込む
+		// テンプレートにバッククォートが含まれる場合は、ダブルクォート文字列を使う
+		if strings.Contains(t.source, "`") {
+			// 警告メッセージを追加
+			warnings = append(warnings, fmt.Sprintf("Warn: template '%s' contains backticks, using escaped format", t.name))
+
+			// バッククォートが含まれる場合: ダブルクォートで囲み、必要な文字をエスケープ
+			// 注: バッククォート自体はエスケープ不要（ダブルクォート文字列内では有効な文字）
+			escaped := strings.ReplaceAll(t.source, `\`, `\\`)
+			escaped = strings.ReplaceAll(escaped, `"`, `\"`)
+			escaped = strings.ReplaceAll(escaped, "\n", `\n`)
+			escaped = strings.ReplaceAll(escaped, "\r", `\r`)
+			escaped = strings.ReplaceAll(escaped, "\t", `\t`)
+			write(b, "var %s = \"%s\"\n\n", t.varName, escaped)
+		} else {
+			// バッククォートが含まれない場合: そのまま``で囲む（可読性重視）
+			write(b, "var %s = `%s`\n\n", t.varName, t.source)
+		}
 	}
+	return warnings
 }
 
 // generateTemplateInitialization はテンプレート初期化のためのヘルパー関数とマップを生成する

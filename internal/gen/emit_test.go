@@ -70,57 +70,37 @@ func findFunc(f *ast.File, name string) *ast.FuncDecl {
 }
 
 func TestEmit_BasicScaffoldAndTypes(t *testing.T) {
-	u := gen.Unit{
-		TemplateName: "tpl",
+	u := gen.TemplateSpec{
+		Name: "tpl",
 		Pkg:          "x",
-		EmbedPath:    "tpl.tmpl",
+		FilePath:    "tpl.tmpl",
 		Source:       "{{ .User.Name }}\n{{ .Message }}\n",
 	}
 
-	code, err := gen.Emit([]gen.Unit{u})
+	result, err := gen.Emit([]gen.TemplateSpec{u})
 	if err != nil {
 		t.Fatalf("Emit failed: %v", err)
 	}
 
-	// Quick string checks
-	if !strings.Contains(code, "//go:embed "+u.EmbedPath) {
-		t.Fatalf("missing go:embed for %q\n%s", u.EmbedPath, code)
-	}
+	// Check MainCode
+	code := result.MainCode
 	if !strings.Contains(code, "Option(\"missingkey=error\")") {
 		t.Fatalf("missing Template Option missingkey=error\n%s", code)
 	}
 
-	// AST checks
+	// Check SourcesCode contains the template variable
+	if !strings.Contains(result.SourcesCode, "var tplTplSource = `") {
+		t.Fatalf("missing template source variable in SourcesCode\n%s", result.SourcesCode)
+	}
+
+	// AST checks on MainCode
 	f := parseCode(t, code)
 	if f.Name.Name != u.Pkg {
 		t.Fatalf("package name = %s; want %s", f.Name.Name, u.Pkg)
 	}
-	if !hasImport(f, "embed", "_") {
-		t.Fatalf("import embed as blank not found")
-	}
+	// embedはもう使わないので確認しない
 	if !hasImport(f, "io", "") || !hasImport(f, "text/template", "") {
 		t.Fatalf("imports io or text/template not found")
-	}
-
-	// var tplTplSource string (新しいフォーマット)
-	varFound := false
-	for _, d := range f.Decls {
-		gd, ok := d.(*ast.GenDecl)
-		if !ok || gd.Tok != token.VAR {
-			continue
-		}
-		for _, s := range gd.Specs {
-			vs := s.(*ast.ValueSpec)
-			if len(vs.Names) == 1 && vs.Names[0].Name == "tplTplSource" {
-				if _, ok := vs.Type.(*ast.Ident); ok {
-					varFound = true
-					break
-				}
-			}
-		}
-	}
-	if !varFound {
-		t.Fatalf("var tplTplSource string not found")
 	}
 
 	// type TplUser struct{ Name string } (新しいフォーマット)
@@ -186,17 +166,17 @@ func TestEmit_BasicScaffoldAndTypes(t *testing.T) {
 }
 
 func TestEmit_RangeAndIndex_TypesAndOrder(t *testing.T) {
-	u := gen.Unit{
-		TemplateName: "email",
+	u := gen.TemplateSpec{
+		Name: "email",
 		Pkg:          "x",
-		EmbedPath:    "email.tmpl",
+		FilePath:    "email.tmpl",
 		Source:       "{{ range .Items }}{{ .Title }}{{ .ID }}{{ end }}\n{{ index .Meta \"env\" }}\n",
 	}
-	code, err := gen.Emit([]gen.Unit{u})
+	result, err := gen.Emit([]gen.TemplateSpec{u})
 	if err != nil {
 		t.Fatalf("Emit failed: %v", err)
 	}
-	f := parseCode(t, code)
+	f := parseCode(t, result.MainCode)
 
 	// type EmailItemsItem with fields Title, ID (order sorted) - 新しいフォーマット
 	it := findType(f, "EmailItemsItem")
@@ -237,20 +217,33 @@ func TestEmit_RangeAndIndex_TypesAndOrder(t *testing.T) {
 }
 
 func TestEmit_Golden_Simple(t *testing.T) {
-	u := gen.Unit{TemplateName: "tpl", Pkg: "x", EmbedPath: "tpl.tmpl", Source: "{{ .User.Name }}\n{{ .Message }}\n"}
-	code, err := gen.Emit([]gen.Unit{u})
+	u := gen.TemplateSpec{Name: "tpl", Pkg: "x", FilePath: "tpl.tmpl", Source: "{{ .User.Name }}\n{{ .Message }}\n"}
+	result, err := gen.Emit([]gen.TemplateSpec{u})
 	if err != nil {
 		t.Fatalf("Emit failed: %v", err)
 	}
+
+	// Check MainCode golden
 	goldenPath := filepath.Join("testdata", "simple.golden")
 	b, err := os.ReadFile(goldenPath)
 	if err != nil {
 		t.Fatalf("failed to read golden: %v", err)
 	}
 	want := string(b)
-	if code != want {
+	if result.MainCode != want {
 		// On mismatch, it helps to see a unified-ish diff. Keep it short.
-		t.Fatalf("golden mismatch\n--- want\n%s\n--- got\n%s", want, code)
+		t.Fatalf("golden mismatch\n--- want\n%s\n--- got\n%s", want, result.MainCode)
+	}
+
+	// Check SourcesCode golden
+	sourcesGoldenPath := filepath.Join("testdata", "simple_sources.golden")
+	sourcesB, err := os.ReadFile(sourcesGoldenPath)
+	if err != nil {
+		t.Fatalf("failed to read sources golden: %v", err)
+	}
+	sourcesWant := string(sourcesB)
+	if result.SourcesCode != sourcesWant {
+		t.Fatalf("sources golden mismatch\n--- want\n%s\n--- got\n%s", sourcesWant, result.SourcesCode)
 	}
 }
 
@@ -259,8 +252,8 @@ func TestEmit_CompilesInTempModule(t *testing.T) {
 		t.Skip("skip on restricted platforms")
 	}
 
-	u := gen.Unit{TemplateName: "tpl", Pkg: "x", EmbedPath: "tpl.tmpl", Source: "Hello {{ .Message }}"}
-	code, err := gen.Emit([]gen.Unit{u})
+	u := gen.TemplateSpec{Name: "tpl", Pkg: "x", FilePath: "tpl.tmpl", Source: "Hello {{ .Message }}"}
+	result, err := gen.Emit([]gen.TemplateSpec{u})
 	if err != nil {
 		t.Fatalf("Emit failed: %v", err)
 	}
@@ -270,12 +263,11 @@ func TestEmit_CompilesInTempModule(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/tmpmod\n\ngo 1.25\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	// Write the template file for go:embed
-	if err := os.WriteFile(filepath.Join(dir, u.EmbedPath), []byte("content"), 0644); err != nil {
+	// Write generated code (2 files now)
+	if err := os.WriteFile(filepath.Join(dir, "gen.go"), []byte(result.MainCode), 0644); err != nil {
 		t.Fatal(err)
 	}
-	// Write generated code
-	if err := os.WriteFile(filepath.Join(dir, "gen.go"), []byte(code), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "gen_sources_gen.go"), []byte(result.SourcesCode), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -296,19 +288,19 @@ func TestEmit_WithParamOverride_BasicTypes(t *testing.T) {
 {{ .User.Name }} is {{ .User.Age }} years old.
 {{ if .User.Email }}Email: {{ .User.Email }}{{ end }}
 `
-	u := gen.Unit{
-		TemplateName: "tpl",
+	u := gen.TemplateSpec{
+		Name: "tpl",
 		Pkg:          "x",
-		EmbedPath:    "tpl.tmpl",
+		FilePath:    "tpl.tmpl",
 		Source:       src,
 	}
 
-	code, err := gen.Emit([]gen.Unit{u})
+	result, err := gen.Emit([]gen.TemplateSpec{u})
 	if err != nil {
 		t.Fatalf("Emit failed: %v", err)
 	}
 
-	f := parseCode(t, code)
+	f := parseCode(t, result.MainCode)
 
 	// Check TplUser struct has Age int and Email *string (新しいフォーマット)
 	user := findType(f, "TplUser")
@@ -350,19 +342,19 @@ func TestEmit_WithParamOverride_SliceType(t *testing.T) {
 {{/* @param Items []struct{ID int64; Title string} */}}
 {{ range .Items }}{{ .ID }}: {{ .Title }}{{ end }}
 `
-	u := gen.Unit{
-		TemplateName: "tpl",
+	u := gen.TemplateSpec{
+		Name: "tpl",
 		Pkg:          "x",
-		EmbedPath:    "tpl.tmpl",
+		FilePath:    "tpl.tmpl",
 		Source:       src,
 	}
 
-	code, err := gen.Emit([]gen.Unit{u})
+	result, err := gen.Emit([]gen.TemplateSpec{u})
 	if err != nil {
 		t.Fatalf("Emit failed: %v", err)
 	}
 
-	f := parseCode(t, code)
+	f := parseCode(t, result.MainCode)
 
 	// Check TplItemsItem has ID int64 and Title string (新しいフォーマット)
 	item := findType(f, "TplItemsItem")
@@ -395,5 +387,38 @@ func TestEmit_WithParamOverride_SliceType(t *testing.T) {
 	if !foundTitle {
 		t.Error("TplItemsItem.Title string not found")
 	}
+}
+
+func TestEmit_TemplateWithBacktick(t *testing.T) {
+	src := "Code example: `{{ .Code }}`"
+	u := gen.TemplateSpec{
+		Name: "tpl",
+		Pkg:          "x",
+		FilePath:    "tpl.tmpl",
+		Source:       src,
+	}
+
+	result, err := gen.Emit([]gen.TemplateSpec{u})
+	if err != nil {
+		t.Fatalf("Emit failed: %v", err)
+	}
+
+	// SourcesCode should use double quotes instead of backticks
+	if strings.Contains(result.SourcesCode, "= `") {
+		t.Fatalf("SourcesCode should not use backticks when template contains backtick\n%s", result.SourcesCode)
+	}
+	if !strings.Contains(result.SourcesCode, "= \"") {
+		t.Fatalf("SourcesCode should use double quotes\n%s", result.SourcesCode)
+	}
+
+	// Verify it compiles and contains the original content
+	if !strings.Contains(result.SourcesCode, "Code example:") {
+		t.Fatalf("SourcesCode missing template content\n%s", result.SourcesCode)
+	}
+
+	// MainCode should parse correctly
+	parseCode(t, result.MainCode)
+	// SourcesCode should parse correctly
+	parseCode(t, result.SourcesCode)
 }
 

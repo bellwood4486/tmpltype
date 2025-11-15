@@ -2,7 +2,6 @@
 package main
 
 import (
-	_ "embed"
 	"fmt"
 	"io"
 	"text/template"
@@ -27,24 +26,6 @@ var Template = struct {
 	SliceTypes:   "slice_types",
 	StructTypes:  "struct_types",
 }
-
-//go:embed templates/basic_types.tmpl
-var basic_typesTplSource string
-
-//go:embed templates/complex_types.tmpl
-var complex_typesTplSource string
-
-//go:embed templates/map_types.tmpl
-var map_typesTplSource string
-
-//go:embed templates/pointer_types.tmpl
-var pointer_typesTplSource string
-
-//go:embed templates/slice_types.tmpl
-var slice_typesTplSource string
-
-//go:embed templates/struct_types.tmpl
-var struct_typesTplSource string
 
 func newTemplate(name TemplateName, source string) *template.Template {
 	return template.Must(template.New(string(name)).Option("missingkey=error").Parse(source))

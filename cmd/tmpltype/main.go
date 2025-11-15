@@ -41,7 +41,7 @@ func main() {
 	}
 
 	// 複数のテンプレートを処理
-	units := make([]gen.Unit, 0, len(files))
+	specs := make([]gen.TemplateSpec, 0, len(files))
 	outDir := filepath.Dir(*out)
 
 	for _, file := range files {
@@ -58,32 +58,65 @@ func main() {
 			os.Exit(1)
 		}
 
-		// embedパスを計算（出力ディレクトリからの相対パス）
-		embedPath, err := filepath.Rel(outDir, file)
+		// ファイルパスを計算（出力ディレクトリからの相対パス）
+		relPath, err := filepath.Rel(outDir, file)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, fmt.Errorf("failed to get embed path for %s: %w", file, err))
+			fmt.Fprintln(os.Stderr, fmt.Errorf("failed to get relative path for %s: %w", file, err))
 			os.Exit(1)
 		}
 
-		units = append(units, gen.Unit{
-			TemplateName: templateName,
-			Pkg:          *pkg,
-			EmbedPath:    embedPath,
-			Source:       string(src),
+		specs = append(specs, gen.TemplateSpec{
+			Name:     templateName,
+			Pkg:      *pkg,
+			FilePath: relPath,
+			Source:   string(src),
 		})
 	}
 
 	// コード生成
-	code, err := gen.Emit(units)
+	result, err := gen.Emit(specs)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, fmt.Errorf("failed to emit: %w", err))
 		os.Exit(1)
 	}
 
-	if err := os.WriteFile(*out, []byte(code), 0644); err != nil {
+	// 警告を出力
+	for _, warning := range result.Warnings {
+		fmt.Fprintln(os.Stderr, warning)
+	}
+
+	// メインファイルを書き込み
+	if err := os.WriteFile(*out, []byte(result.MainCode), 0644); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+
+	// テンプレート文字列リテラルファイルを書き込み
+	sourcesPath := generateSourcesPath(*out)
+	if err := os.WriteFile(sourcesPath, []byte(result.SourcesCode), 0644); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+// generateSourcesPath は出力ファイルパスからテンプレート文字列リテラルファイルのパスを生成する
+// 例: "template_gen.go" -> "template_sources_gen.go"
+// 例: "foo/bar_gen.go" -> "foo/bar_sources_gen.go"
+func generateSourcesPath(outPath string) string {
+	dir := filepath.Dir(outPath)
+	base := filepath.Base(outPath)
+	ext := filepath.Ext(base)
+	nameWithoutExt := strings.TrimSuffix(base, ext)
+
+	// "_gen" を "_sources_gen" に置き換える、なければ "_sources_gen" を追加
+	var sourcesName string
+	if strings.HasSuffix(nameWithoutExt, "_gen") {
+		sourcesName = strings.TrimSuffix(nameWithoutExt, "_gen") + "_sources_gen"
+	} else {
+		sourcesName = nameWithoutExt + "_sources_gen"
+	}
+
+	return filepath.Join(dir, sourcesName+ext)
 }
 
 // scanTemplateFiles はディレクトリから.tmplファイルをスキャンする
