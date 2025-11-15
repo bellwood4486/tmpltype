@@ -291,7 +291,8 @@ func generateSourcesCode(b *strings.Builder, templates []tmpl) []string {
 			// 警告メッセージを追加
 			warnings = append(warnings, fmt.Sprintf("Warn: template '%s' contains backticks, using escaped format", t.name))
 
-			// バッククォートが含まれる場合: エスケープして""で囲む
+			// バッククォートが含まれる場合: ダブルクォートで囲み、必要な文字をエスケープ
+			// 注: バッククォート自体はエスケープ不要（ダブルクォート文字列内では有効な文字）
 			escaped := strings.ReplaceAll(t.source, `\`, `\\`)
 			escaped = strings.ReplaceAll(escaped, `"`, `\"`)
 			escaped = strings.ReplaceAll(escaped, "\n", `\n`)
