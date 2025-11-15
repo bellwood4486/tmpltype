@@ -193,7 +193,7 @@ func Emit(units []Unit) (*EmitResult, error) {
 	generateGenericRenderFunction(&mainBuilder)
 	generateTemplateBlocks(&mainBuilder, prepared.allTemplates())
 
-	// Phase 3: ソースコード生成
+	// Phase 3: テンプレート文字列リテラルファイル生成
 	var sourcesBuilder strings.Builder
 	generateHeader(&sourcesBuilder, prepared.pkg)
 	generateSourcesCode(&sourcesBuilder, prepared.allTemplates())

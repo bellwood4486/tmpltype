@@ -86,7 +86,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// ソースファイルを書き込み
+	// テンプレート文字列リテラルファイルを書き込み
 	sourcesPath := generateSourcesPath(*out)
 	if err := os.WriteFile(sourcesPath, []byte(result.SourcesCode), 0644); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -94,7 +94,7 @@ func main() {
 	}
 }
 
-// generateSourcesPath は出力ファイルパスからソースファイルパスを生成する
+// generateSourcesPath は出力ファイルパスからテンプレート文字列リテラルファイルのパスを生成する
 // 例: "template_gen.go" -> "template_sources_gen.go"
 // 例: "foo/bar_gen.go" -> "foo/bar_sources_gen.go"
 func generateSourcesPath(outPath string) string {
