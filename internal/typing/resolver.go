@@ -11,6 +11,10 @@ import (
 	"github.com/bellwood4486/tmpltype/internal/util"
 )
 
+// ============================================================
+// Public API
+// ============================================================
+
 // Resolve resolves types for a schema with both default inference and @param overrides
 func Resolve(schema scan.Schema, templateSrc string) (*TypedSchema, error) {
 	// 1. デフォルト型推論
@@ -30,6 +34,10 @@ func Resolve(schema scan.Schema, templateSrc string) (*TypedSchema, error) {
 
 	return typed, nil
 }
+
+// ============================================================
+// Phase 1: Default Type Inference
+// ============================================================
 
 // inferDefaultTypes performs default type inference
 func inferDefaultTypes(schema scan.Schema) *TypedSchema {
@@ -102,6 +110,10 @@ func inferFieldType(path []string, field *scan.Field) *TypedField {
 	return typed
 }
 
+// ============================================================
+// Phase 2: Apply @param Overrides
+// ============================================================
+
 // applyOverrides applies @param overrides to typed schema
 func applyOverrides(typed *TypedSchema, resolver *magic.TypeResolver) {
 	// トップレベルフィールドから順に処理
@@ -148,6 +160,10 @@ func applyFieldOverride(path []string, field *TypedField, resolver *magic.TypeRe
 		}
 	}
 }
+
+// ============================================================
+// Phase 3: Extract Named Types
+// ============================================================
 
 // extractNamedTypes extracts named struct types
 func extractNamedTypes(typed *TypedSchema) {
@@ -207,6 +223,10 @@ func extractNamedTypes(typed *TypedSchema) {
 		typed.NamedTypes = append(typed.NamedTypes, namedTypes[name])
 	}
 }
+
+// ============================================================
+// Utility Functions
+// ============================================================
 
 func isBuiltinType(typeName string) bool {
 	builtins := []string{
