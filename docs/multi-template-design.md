@@ -51,21 +51,14 @@ templates/
 ### 4.3 生成される構造
 
 ```go
-// template_gen.go (単数形)
+// template_gen.go
 package templates
 
 import (
-    _ "embed"
     "fmt"       // エラーハンドリング用に必須
     "io"
     "text/template"
 )
-
-//go:embed user.tmpl
-var userTplSource string
-
-//go:embed user_list.tmpl
-var userListTplSource string
 
 // ネストした型定義（あれば先に定義）
 type UserListUsersItem struct {
@@ -86,12 +79,18 @@ type UserList struct {
     Users []UserListUsersItem
 }
 
+func newTemplate(name TemplateName, source string) *template.Template {
+    return template.Must(template.New(string(name)).Option("missingkey=error").Parse(source))
+}
+
+var templates = map[TemplateName]*template.Template{
+    Template.User:     newTemplate(Template.User, userTplSource),
+    Template.UserList: newTemplate(Template.UserList, userListTplSource),
+}
+
 // Templates returns a map of all templates
-func Templates() map[string]*template.Template {
-    return map[string]*template.Template{
-        "user":      template.Must(template.New("user").Option("missingkey=error").Parse(userTplSource)),
-        "user_list": template.Must(template.New("user_list").Option("missingkey=error").Parse(userListTplSource)),
-    }
+func Templates() map[TemplateName]*template.Template {
+    return templates
 }
 
 // RenderUser renders the user template
@@ -182,16 +181,14 @@ templagen -in "user.tmpl,user_list.tmpl" -pkg templates -out template_gen.go
 
 2. 各テンプレートを処理
    - テンプレート名の決定（ファイル名から）
+   - テンプレート内容の読み込み
    - AST解析とフィールド収集
    - @paramディレクティブの処理
    - 型推論と型解決
 
 3. 統合コード生成
-   - 全テンプレートのembed宣言
-   - テンプレートごとの型定義
-   - Templates()マップ関数
-   - 個別Render関数
-   - 汎用Render関数
+   - template_gen.go: 型定義、Templates()マップ、個別Render関数、汎用Render関数
+   - template_sources_gen.go: テンプレート内容を文字列リテラルとして埋め込み
 ```
 
 ### 7.2 型の名前衝突回避
@@ -243,7 +240,10 @@ type FooterLinksItem struct {
 - `fmt`: エラーメッセージのフォーマット用
 - `io`: Writer インターフェース用
 - `text/template`: テンプレートエンジン
-- `embed`: テンプレートファイルの埋め込み
+
+**生成されるファイル:**
+- `template_gen.go`: 型定義とRender関数
+- `template_sources_gen.go`: テンプレート内容を文字列リテラルとして含む
 
 ### 8.2 エラーハンドリング
 - 一部のテンプレートでパースエラーが発生した場合は、該当ファイルを報告して処理を中断
@@ -280,7 +280,8 @@ A: `Templates()["user"]`でテンプレートを取得できます。また、�
 各サンプルには以下が含まれます：
 - `gen.go`: go:generate定義
 - `main.go`: 使用例のデモコード
-- `template_gen.go`: 生成されたコード
+- `template_gen.go`: 生成されたコード（型定義・関数）
+- `template_sources_gen.go`: 生成されたコード（テンプレート文字列）
 - `templates/`: テンプレートファイル
 
 ## 11. まとめ
