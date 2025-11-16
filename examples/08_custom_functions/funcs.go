@@ -52,5 +52,10 @@ func GetTemplateFuncs() template.FuncMap {
 			}
 			return result
 		},
+
+		// Test functions for custom_func_test.tmpl
+		"myCustomFunction":     strings.ToUpper,
+		"anotherUniqueFunc":    strings.ToLower,
+		"verySpecificFunction": func(s string) string { return "[" + s + "]" },
 	}
 }
