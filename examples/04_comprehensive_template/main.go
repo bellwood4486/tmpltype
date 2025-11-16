@@ -6,6 +6,7 @@ import (
 )
 
 func main() {
+	InitTemplates()
 	// Example: Using type-safe render functions with comprehensive template features
 	fmt.Println("=== Comprehensive Template Example ===")
 	fmt.Println()

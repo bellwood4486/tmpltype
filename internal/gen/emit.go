@@ -89,7 +89,8 @@ func Emit(specs []TemplateSpec) (*EmitResult, error) {
 	generateHeader(&mainBuilder, prepared.pkg)
 	generateMainImports(&mainBuilder, prepared.imports)
 	generateTemplateNamespace(&mainBuilder, prepared)
-	generateTemplateInitialization(&mainBuilder, prepared)
+	generateTemplateOptions(&mainBuilder)
+	generateInitFunction(&mainBuilder, prepared)
 	generateTemplatesFunction(&mainBuilder)
 	generateGenericRenderFunction(&mainBuilder)
 	generateTemplateBlocks(&mainBuilder, prepared.allTemplates())
@@ -172,6 +173,11 @@ func prepare(specs []TemplateSpec) (*emitPrepared, error) {
 		typed, err := typing.Resolve(sch, spec.Source)
 		if err != nil {
 			return nil, fmt.Errorf("failed to resolve types for %s: %w", spec.Name, err)
+		}
+
+		// 型解決で必要になったimportsをマージ
+		for imp := range typed.Imports {
+			allImports[imp] = struct{}{}
 		}
 
 		// テンプレートデータを追加
@@ -314,6 +320,9 @@ func generateHeader(b *strings.Builder, pkg string) {
 
 // generateMainImports はメインファイルのimportセクションを生成する
 func generateMainImports(b *strings.Builder, imports map[string]struct{}) {
+	// sync パッケージを追加（InitTemplates で sync.Once を使用）
+	imports["sync"] = struct{}{}
+
 	write(b, "import (\n")
 	keys := slices.Sorted(maps.Keys(imports))
 	for _, k := range keys {
@@ -405,23 +414,55 @@ func generateSourcesCode(b *strings.Builder, templates []tmpl) []string {
 }
 
 // ============================================================
+// Code Generation - Template Options (Functional Option Pattern)
+// ============================================================
+
+// generateTemplateOptions は functional option pattern の型と関数を生成する
+func generateTemplateOptions(b *strings.Builder) {
+	write(b, "// TemplateOption configures template initialization\n")
+	write(b, "type TemplateOption func(*templateConfig)\n\n")
+
+	write(b, "type templateConfig struct {\n")
+	write(b, "\tfuncs template.FuncMap\n")
+	write(b, "}\n\n")
+
+	write(b, "// WithFuncs sets custom template functions\n")
+	write(b, "func WithFuncs(funcs template.FuncMap) TemplateOption {\n")
+	write(b, "\treturn func(c *templateConfig) {\n")
+	write(b, "\t\tc.funcs = funcs\n")
+	write(b, "\t}\n")
+	write(b, "}\n\n")
+}
+
+// ============================================================
 // Code Generation - Template Initialization
 // ============================================================
 
-// generateTemplateInitialization はテンプレート初期化のためのヘルパー関数とマップを生成する
-func generateTemplateInitialization(b *strings.Builder, p *emitPrepared) {
-	// Helper function for template initialization
-	write(b, "func newTemplate(name TemplateName, source string) *template.Template {\n")
-	write(b, "\treturn template.Must(template.New(string(name)).Option(%q).Parse(source))\n", "missingkey=error")
-	write(b, "}\n\n")
+// generateInitFunction は InitTemplates 関数を生成する
+func generateInitFunction(b *strings.Builder, p *emitPrepared) {
+	write(b, "var templates map[TemplateName]*template.Template\n")
+	write(b, "var initOnce sync.Once\n\n")
 
-	// Templates map - initialized once at package initialization
-	write(b, "var templates = map[TemplateName]*template.Template{\n")
+	write(b, "// InitTemplates initializes all templates with the given options.\n")
+	write(b, "// Must be called before using any render functions.\n")
+	write(b, "//\n")
+	write(b, "// Example:\n")
+	write(b, "//\n")
+	write(b, "//\tInitTemplates() // without custom functions\n")
+	write(b, "//\tInitTemplates(WithFuncs(GetTemplateFuncs())) // with custom functions\n")
+	write(b, "func InitTemplates(opts ...TemplateOption) {\n")
+	write(b, "\tinitOnce.Do(func() {\n")
+	write(b, "\t\tconfig := &templateConfig{}\n")
+	write(b, "\t\tfor _, opt := range opts {\n")
+	write(b, "\t\t\topt(config)\n")
+	write(b, "\t\t}\n\n")
+
+	write(b, "\t\ttemplates = map[TemplateName]*template.Template{\n")
 
 	// フラットなテンプレート
 	for _, t := range p.flatTemplates {
 		fieldRef := "Template." + t.typeName
-		write(b, "\t%s: newTemplate(%s, %s),\n",
+		write(b, "\t\t\t%s: newTemplate(%s, %s, config),\n",
 			fieldRef, fieldRef, t.varName)
 	}
 
@@ -430,11 +471,22 @@ func generateTemplateInitialization(b *strings.Builder, p *emitPrepared) {
 		for _, t := range g.templates {
 			localName := strings.TrimPrefix(t.typeName, g.typeName)
 			fieldRef := "Template." + g.typeName + "." + localName
-			write(b, "\t%s: newTemplate(%s, %s),\n",
+			write(b, "\t\t\t%s: newTemplate(%s, %s, config),\n",
 				fieldRef, fieldRef, t.varName)
 		}
 	}
 
+	write(b, "\t\t}\n")
+	write(b, "\t})\n")
+	write(b, "}\n\n")
+
+	// newTemplate helper function
+	write(b, "func newTemplate(name TemplateName, source string, config *templateConfig) *template.Template {\n")
+	write(b, "\tt := template.New(string(name))\n")
+	write(b, "\tif config.funcs != nil {\n")
+	write(b, "\t\tt = t.Funcs(config.funcs)\n")
+	write(b, "\t}\n")
+	write(b, "\treturn template.Must(t.Option(%q).Parse(source))\n", "missingkey=error")
 	write(b, "}\n\n")
 }
 
@@ -454,6 +506,9 @@ func generateTemplatesFunction(b *strings.Builder) {
 func generateGenericRenderFunction(b *strings.Builder) {
 	write(b, "// Render renders a template by name with the given data\n")
 	write(b, "func Render(w io.Writer, name TemplateName, data any) error {\n")
+	write(b, "\tif templates == nil {\n")
+	write(b, "\t\treturn fmt.Errorf(\"templates not initialized: call InitTemplates() first\")\n")
+	write(b, "\t}\n")
 	write(b, "\ttmpl, ok := templates[name]\n")
 	write(b, "\tif !ok {\n")
 	write(b, "\t\treturn fmt.Errorf(\"template %%q not found\", name)\n")
@@ -536,6 +591,9 @@ func generateRenderFunction(b *strings.Builder, t tmpl) {
 
 	write(b, "// %s renders the %s template\n", funcName, t.name)
 	write(b, "func %s(w io.Writer, p %s) error {\n", funcName, t.typeName)
+	write(b, "\tif templates == nil {\n")
+	write(b, "\t\treturn fmt.Errorf(\"templates not initialized: call InitTemplates() first\")\n")
+	write(b, "\t}\n")
 	write(b, "\ttmpl, ok := templates[%s]\n", fieldRef)
 	write(b, "\tif !ok {\n")
 	write(b, "\t\treturn fmt.Errorf(\"template %%q not found\", %s)\n", fieldRef)

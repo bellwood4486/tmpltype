@@ -32,6 +32,9 @@ func Resolve(schema scan.Schema, templateSrc string) (*TypedSchema, error) {
 	// 3. 名前付き型を抽出
 	extractNamedTypes(typed)
 
+	// 4. 必要なimportsを収集
+	collectImports(typed)
+
 	return typed, nil
 }
 
@@ -44,6 +47,7 @@ func inferDefaultTypes(schema scan.Schema) *TypedSchema {
 	typed := &TypedSchema{
 		Fields:     make(map[string]*TypedField),
 		NamedTypes: []*NamedType{},
+		Imports:    make(map[string]struct{}),
 	}
 
 	for name, field := range schema.Fields {
@@ -240,4 +244,38 @@ func isBuiltinType(typeName string) bool {
 		}
 	}
 	return false
+}
+
+// ============================================================
+// Phase 4: Collect Imports
+// ============================================================
+
+// collectImports collects required imports based on types used
+func collectImports(typed *TypedSchema) {
+	var collectFromField func(field *TypedField)
+	collectFromField = func(field *TypedField) {
+		// time.Time を使っている場合は time パッケージが必要
+		if strings.Contains(field.GoType, "time.Time") {
+			typed.Imports["time"] = struct{}{}
+		}
+
+		// 子フィールドも再帰的にチェック
+		if field.Children != nil {
+			for _, child := range field.Children {
+				collectFromField(child)
+			}
+		}
+	}
+
+	// トップレベルフィールドをチェック
+	for _, field := range typed.Fields {
+		collectFromField(field)
+	}
+
+	// 名前付き型もチェック
+	for _, namedType := range typed.NamedTypes {
+		for _, field := range namedType.Fields {
+			collectFromField(field)
+		}
+	}
 }

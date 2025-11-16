@@ -4,6 +4,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"sync"
 	"text/template"
 )
 
@@ -27,17 +28,54 @@ var Template = struct {
 	StructTypes:  "struct_types",
 }
 
-func newTemplate(name TemplateName, source string) *template.Template {
-	return template.Must(template.New(string(name)).Option("missingkey=error").Parse(source))
+// TemplateOption configures template initialization
+type TemplateOption func(*templateConfig)
+
+type templateConfig struct {
+	funcs template.FuncMap
 }
 
-var templates = map[TemplateName]*template.Template{
-	Template.BasicTypes:   newTemplate(Template.BasicTypes, basic_typesTplSource),
-	Template.ComplexTypes: newTemplate(Template.ComplexTypes, complex_typesTplSource),
-	Template.MapTypes:     newTemplate(Template.MapTypes, map_typesTplSource),
-	Template.PointerTypes: newTemplate(Template.PointerTypes, pointer_typesTplSource),
-	Template.SliceTypes:   newTemplate(Template.SliceTypes, slice_typesTplSource),
-	Template.StructTypes:  newTemplate(Template.StructTypes, struct_typesTplSource),
+// WithFuncs sets custom template functions
+func WithFuncs(funcs template.FuncMap) TemplateOption {
+	return func(c *templateConfig) {
+		c.funcs = funcs
+	}
+}
+
+var templates map[TemplateName]*template.Template
+var initOnce sync.Once
+
+// InitTemplates initializes all templates with the given options.
+// Must be called before using any render functions.
+//
+// Example:
+//
+//	InitTemplates() // without custom functions
+//	InitTemplates(WithFuncs(GetTemplateFuncs())) // with custom functions
+func InitTemplates(opts ...TemplateOption) {
+	initOnce.Do(func() {
+		config := &templateConfig{}
+		for _, opt := range opts {
+			opt(config)
+		}
+
+		templates = map[TemplateName]*template.Template{
+			Template.BasicTypes:   newTemplate(Template.BasicTypes, basic_typesTplSource, config),
+			Template.ComplexTypes: newTemplate(Template.ComplexTypes, complex_typesTplSource, config),
+			Template.MapTypes:     newTemplate(Template.MapTypes, map_typesTplSource, config),
+			Template.PointerTypes: newTemplate(Template.PointerTypes, pointer_typesTplSource, config),
+			Template.SliceTypes:   newTemplate(Template.SliceTypes, slice_typesTplSource, config),
+			Template.StructTypes:  newTemplate(Template.StructTypes, struct_typesTplSource, config),
+		}
+	})
+}
+
+func newTemplate(name TemplateName, source string, config *templateConfig) *template.Template {
+	t := template.New(string(name))
+	if config.funcs != nil {
+		t = t.Funcs(config.funcs)
+	}
+	return template.Must(t.Option("missingkey=error").Parse(source))
 }
 
 // Templates returns a map of all templates
@@ -47,6 +85,9 @@ func Templates() map[TemplateName]*template.Template {
 
 // Render renders a template by name with the given data
 func Render(w io.Writer, name TemplateName, data any) error {
+	if templates == nil {
+		return fmt.Errorf("templates not initialized: call InitTemplates() first")
+	}
 	tmpl, ok := templates[name]
 	if !ok {
 		return fmt.Errorf("template %q not found", name)
@@ -69,6 +110,9 @@ type BasicTypes struct {
 
 // RenderBasicTypes renders the basic_types template
 func RenderBasicTypes(w io.Writer, p BasicTypes) error {
+	if templates == nil {
+		return fmt.Errorf("templates not initialized: call InitTemplates() first")
+	}
 	tmpl, ok := templates[Template.BasicTypes]
 	if !ok {
 		return fmt.Errorf("template %q not found", Template.BasicTypes)
@@ -102,6 +146,9 @@ type ComplexTypes struct {
 
 // RenderComplexTypes renders the complex_types template
 func RenderComplexTypes(w io.Writer, p ComplexTypes) error {
+	if templates == nil {
+		return fmt.Errorf("templates not initialized: call InitTemplates() first")
+	}
 	tmpl, ok := templates[Template.ComplexTypes]
 	if !ok {
 		return fmt.Errorf("template %q not found", Template.ComplexTypes)
@@ -123,6 +170,9 @@ type MapTypes struct {
 
 // RenderMapTypes renders the map_types template
 func RenderMapTypes(w io.Writer, p MapTypes) error {
+	if templates == nil {
+		return fmt.Errorf("templates not initialized: call InitTemplates() first")
+	}
 	tmpl, ok := templates[Template.MapTypes]
 	if !ok {
 		return fmt.Errorf("template %q not found", Template.MapTypes)
@@ -144,6 +194,9 @@ type PointerTypes struct {
 
 // RenderPointerTypes renders the pointer_types template
 func RenderPointerTypes(w io.Writer, p PointerTypes) error {
+	if templates == nil {
+		return fmt.Errorf("templates not initialized: call InitTemplates() first")
+	}
 	tmpl, ok := templates[Template.PointerTypes]
 	if !ok {
 		return fmt.Errorf("template %q not found", Template.PointerTypes)
@@ -165,6 +218,9 @@ type SliceTypes struct {
 
 // RenderSliceTypes renders the slice_types template
 func RenderSliceTypes(w io.Writer, p SliceTypes) error {
+	if templates == nil {
+		return fmt.Errorf("templates not initialized: call InitTemplates() first")
+	}
 	tmpl, ok := templates[Template.SliceTypes]
 	if !ok {
 		return fmt.Errorf("template %q not found", Template.SliceTypes)
@@ -196,6 +252,9 @@ type StructTypes struct {
 
 // RenderStructTypes renders the struct_types template
 func RenderStructTypes(w io.Writer, p StructTypes) error {
+	if templates == nil {
+		return fmt.Errorf("templates not initialized: call InitTemplates() first")
+	}
 	tmpl, ok := templates[Template.StructTypes]
 	if !ok {
 		return fmt.Errorf("template %q not found", Template.StructTypes)
