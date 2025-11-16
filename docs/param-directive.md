@@ -443,21 +443,39 @@ Map keys must always be `string`:
 
 ### ✅ DO
 
+**Always use trim markers (`{{-` and `-}}`) with `@param` directives:**
+
+Since `@param` directives don't produce any output, they should always use Go template trim markers to avoid blank lines in the rendered output.
+
+```go
+// ✅ Recommended: No blank lines in output
+{{- /* @param User.Name string */ -}}
+{{- /* @param User.Age int */ -}}
+{{- /* @param Items []struct{ID int64; Title string} */ -}}
+<div>Content starts here</div>
+
+// ❌ Not recommended: Creates blank lines
+{{/* @param User.Name string */}}
+{{/* @param User.Age int */}}
+{{/* @param Items []struct{ID int64; Title string} */}}
+<div>Content starts here</div>  {{/* 3 blank lines before this */}}
+```
+
 **Use dot notation for nested structures:**
 ```go
-{{/* @param User.Name string */}}
-{{/* @param Config.Database.Host string */}}
+{{- /* @param User.Name string */ -}}
+{{- /* @param Config.Database.Host string */ -}}
 ```
 
 **Use `[]struct{...}` for complex collections:**
 ```go
-{{/* @param Items []struct{ID int64; Name string; Price float64} */}}
+{{- /* @param Items []struct{ID int64; Name string; Price float64} */ -}}
 ```
 
 **Use pointer types for optional fields:**
 ```go
-{{/* @param Email *string */}}
-{{/* @param Score *int */}}
+{{- /* @param Email *string */ -}}
+{{- /* @param Score *int */ -}}
 ```
 
 **Keep field paths relatively flat (1-2 levels):**

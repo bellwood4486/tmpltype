@@ -127,3 +127,79 @@ func TestTypeResolver_SliceType(t *testing.T) {
 		t.Errorf("expected Tags to be '[]string', got %s", typ)
 	}
 }
+
+func TestParseParams_TrimMarkers(t *testing.T) {
+	tests := []struct {
+		name     string
+		src      string
+		expected int
+	}{
+		{
+			name: "left trim marker without space",
+			src: `{{-/* @param User.Age int */}}
+{{ .User.Name }}`,
+			expected: 1,
+		},
+		{
+			name: "left trim marker with space",
+			src: `{{- /* @param User.Age int */}}
+{{ .User.Name }}`,
+			expected: 1,
+		},
+		{
+			name: "right trim marker without space",
+			src: `{{/* @param User.Age int */-}}
+{{ .User.Name }}`,
+			expected: 1,
+		},
+		{
+			name: "right trim marker with space",
+			src: `{{/* @param User.Age int */ -}}
+{{ .User.Name }}`,
+			expected: 1,
+		},
+		{
+			name: "both trim markers",
+			src: `{{-/* @param User.Age int */-}}
+{{ .User.Name }}`,
+			expected: 1,
+		},
+		{
+			name: "both trim markers with spaces",
+			src: `{{- /* @param User.Age int */ -}}
+{{ .User.Name }}`,
+			expected: 1,
+		},
+		{
+			name: "multiple directives with trim markers",
+			src: `{{-/* @param User.Age int */}}
+{{-/* @param User.Email *string */}}
+{{-/* @param Items []string */-}}
+{{ .User.Name }}`,
+			expected: 3,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			directives, err := ParseParams(tt.src)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if len(directives) != tt.expected {
+				t.Errorf("expected %d directives, got %d", tt.expected, len(directives))
+			}
+
+			// Verify first directive is parsed correctly
+			if len(directives) > 0 {
+				if directives[0].Path != "User.Age" {
+					t.Errorf("unexpected path: %s", directives[0].Path)
+				}
+				if directives[0].Type.Kind != TypeKindBase || directives[0].Type.BaseType != "int" {
+					t.Errorf("unexpected type for User.Age")
+				}
+			}
+		})
+	}
+}
