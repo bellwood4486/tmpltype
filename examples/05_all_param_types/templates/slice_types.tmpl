@@ -1,8 +1,7 @@
-{{/* @param Tags []string */}}
-{{/* @param CategoryIDs []int */}}
-{{/* @param Ratings []float64 */}}
-{{/* @param Flags []bool */}}
-
+{{- /* @param Tags []string */ -}}
+{{- /* @param CategoryIDs []int */ -}}
+{{- /* @param Ratings []float64 */ -}}
+{{- /* @param Flags []bool */ -}}
 === Slice Types ===
 
 Tags: {{ range $i, $tag := .Tags }}{{ if $i }}, {{ end }}{{ $tag }}{{ end }}

@@ -38,7 +38,7 @@ type ParamDirective struct {
 	Line int      // テンプレート内の行番号
 }
 
-var paramRegex = regexp.MustCompile(`\{\{/\*\s*@param\s+(\S+)\s+(.+?)\s*\*/\}\}`)
+var paramRegex = regexp.MustCompile(`\{\{-?\s*/\*\s*@param\s+(\S+)\s+(.+?)\s*\*/\s*-?\}\}`)
 
 // ParseParams はテンプレートソースから @param ディレクティブを抽出する
 func ParseParams(src string) ([]ParamDirective, error) {

@@ -238,21 +238,39 @@ RenderTemplate(w, Params{Age: "25"})  // ❌ コンパイルエラー
 
 ### ✅ 推奨
 
+**`@param`ディレクティブには常にトリムマーカー（`{{-`と`-}}`）を使用:**
+
+`@param`ディレクティブは出力を生成しないため、常にGoテンプレートのトリムマーカーを使用して、レンダリング出力に空行が含まれないようにする必要があります。
+
+```go
+// ✅ 推奨: 出力に空行が含まれない
+{{- /* @param User.Name string */ -}}
+{{- /* @param User.Age int */ -}}
+{{- /* @param Items []struct{ID int64; Title string} */ -}}
+<div>コンテンツがここから始まります</div>
+
+// ❌ 非推奨: 空行が生成される
+{{/* @param User.Name string */}}
+{{/* @param User.Age int */}}
+{{/* @param Items []struct{ID int64; Title string} */}}
+<div>コンテンツがここから始まります</div>  {{/* この前に3行の空行 */}}
+```
+
 **ネストされた構造にはドット記法を使用:**
 ```go
-{{/* @param User.Name string */}}
-{{/* @param Config.Database.Host string */}}
+{{- /* @param User.Name string */ -}}
+{{- /* @param Config.Database.Host string */ -}}
 ```
 
 **複雑なコレクションには`[]struct{...}`を使用:**
 ```go
-{{/* @param Items []struct{ID int64; Name string; Price float64} */}}
+{{- /* @param Items []struct{ID int64; Name string; Price float64} */ -}}
 ```
 
 **オプショナルフィールドにはポインタ型を使用:**
 ```go
-{{/* @param Email *string */}}
-{{/* @param Score *int */}}
+{{- /* @param Email *string */ -}}
+{{- /* @param Score *int */ -}}
 ```
 
 **フィールドパスは比較的フラットに（1〜2レベル）:**
