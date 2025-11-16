@@ -48,7 +48,8 @@ func (c ctx) with(prefix []string) ctx {
 // 既定では葉はすべて string として扱い、 range は []struct{}, index は map[string]string を推論します。
 func ScanTemplate(src string) (Schema, error) {
 	// Use text/template to ensure built-in funcs (e.g., index) are defined.
-	tmpl, err := template.New("tpl").Parse(src)
+	// Also add dummy functions to allow custom function names in templates.
+	tmpl, err := template.New("tpl").Funcs(dummyFuncMap()).Parse(src)
 	if err != nil {
 		return Schema{}, fmt.Errorf("failed to parse template: %w", err)
 	}
@@ -60,6 +61,51 @@ func ScanTemplate(src string) (Schema, error) {
 	walk(tmpl.Tree.Root, &s, ctx{})
 
 	return s, nil
+}
+
+// dummyFuncMap は未定義カスタム関数によるパースエラーを回避するためのダミー関数マップを返します。
+// スキャン時は AST を取得するだけで実際に関数を実行しないため、ダミー実装で十分です。
+func dummyFuncMap() template.FuncMap {
+	// 汎用ダミー関数: 任意の引数を受け取り、空文字列を返す
+	dummy := func(args ...interface{}) interface{} {
+		return ""
+	}
+
+	// よく使われるカスタム関数名をプリセット
+	return template.FuncMap{
+		"upper":          dummy,
+		"lower":          dummy,
+		"title":          dummy,
+		"trim":           dummy,
+		"trimSpace":      dummy,
+		"formatDate":     dummy,
+		"formatDateTime": dummy,
+		"formatTime":     dummy,
+		"nl2br":          dummy,
+		"default":        dummy,
+		"join":           dummy,
+		"split":          dummy,
+		"add":            dummy,
+		"sub":            dummy,
+		"mul":            dummy,
+		"div":            dummy,
+		"mod":            dummy,
+		"comma":          dummy,
+		"json":           dummy,
+		"yaml":           dummy,
+		"base64":         dummy,
+		"urlEncode":      dummy,
+		"urlDecode":      dummy,
+		"htmlEscape":     dummy,
+		"htmlUnescape":   dummy,
+		"contains":       dummy,
+		"hasPrefix":      dummy,
+		"hasSuffix":      dummy,
+		"replace":        dummy,
+		"repeat":         dummy,
+		"reverse":        dummy,
+		"truncate":       dummy,
+	}
 }
 
 // ============================================================

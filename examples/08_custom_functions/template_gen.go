@@ -6,6 +6,7 @@ import (
 	"io"
 	"sync"
 	"text/template"
+	"time"
 )
 
 // TemplateName is a type-safe template name
@@ -85,13 +86,18 @@ func Render(w io.Writer, name TemplateName, data any) error {
 // ============================================================
 
 type EmailUser struct {
-	Name string
+	Email string
+	Name  string
 }
 
 // Email represents parameters for email template
 type Email struct {
-	Message string
-	User    EmailUser
+	CreatedAt time.Time
+	Message   string
+	Price     int
+	Title     string
+	URL       string
+	User      EmailUser
 }
 
 // RenderEmail renders the email template

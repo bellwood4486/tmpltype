@@ -6,6 +6,9 @@ import (
 )
 
 func main() {
+	// Initialize templates (required before rendering)
+	InitTemplates()
+
 	// Example 1: Using generic Render with map[string]any
 	fmt.Println("=== Example 1: Render (dynamic) ===")
 	var buf1 bytes.Buffer
