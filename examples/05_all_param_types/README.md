@@ -20,8 +20,7 @@ The `@param` directive allows you to override the inferred types for template fi
 ## Quick Start
 
 ```go
-// Basic types
-{{/* @param Name string */}}
+// Basic types (string is inferred by default, so no @param needed)
 {{/* @param Age int */}}
 
 // Optional types (pointers)
@@ -33,10 +32,9 @@ The `@param` directive allows you to override the inferred types for template fi
 
 // Nested structures (use dot notation)
 {{/* @param User.ID int64 */}}
-{{/* @param User.Name string */}}
 
-// Slice of structs
-{{/* @param Items []struct{ID int64; Title string; Price float64} */}}
+// Slice of structs (string fields like Title are inferred)
+{{/* @param Items []struct{ID int64; Price float64} */}}
 ```
 
 ```bash
@@ -53,7 +51,7 @@ This example demonstrates all working `@param` patterns organized across 6 focus
 
 | Template | Patterns Demonstrated |
 |----------|----------------------|
-| `basic_types.tmpl` | `string`, `int`, `int64`, `float64`, `bool` |
+| `basic_types.tmpl` | `int`, `int64`, `float64`, `bool` (string inferred by default) |
 | `pointer_types.tmpl` | `*string`, `*int`, `*float64` (optional/nullable fields) |
 | `slice_types.tmpl` | `[]string`, `[]int`, `[]float64`, `[]bool` |
 | `map_types.tmpl` | `map[string]string`, `map[string]int`, `map[string]float64`, `map[string]bool` |
@@ -62,14 +60,14 @@ This example demonstrates all working `@param` patterns organized across 6 focus
 
 ### ✅ Supported Patterns Demonstrated
 
-1. **Basic Types**: `string`, `int`, `int64`, `float64`, `bool`
+1. **Basic Types**: `int`, `int64`, `float64`, `bool` (string inferred by default, no @param needed)
 2. **Pointer Types**: `*string`, `*int`, `*float64` (optional/nullable fields)
 3. **Slices**: `[]string`, `[]int`, `[]float64`, `[]bool`
 4. **Maps**: `map[string]string`, `map[string]int`, `map[string]float64`, `map[string]bool`
 5. **Nested Struct Fields**: Using dot notation (`User.ID`, `Product.Price`)
-6. **Slice of Structs**: `[]struct{ID int64; Title string; Tags []string}`
+6. **Slice of Structs**: `[]struct{ID int64; Price float64}` (string fields inferred)
 7. **Optional Slices**: `*[]string`
-8. **Structs with Optional Fields**: `[]struct{Name string; Score *int}`
+8. **Structs with Optional Fields**: `[]struct{Score *int}` (string fields inferred)
 
 ### ❌ Known Limitations (See Main README)
 
@@ -144,13 +142,13 @@ Example:
 ```go
 // From struct_types.tmpl
 {{/* @param User.ID int64 */}}
-{{/* @param User.Name string */}}
+// User.Name and User.Email are inferred as string (no @param needed)
 
 // Generated code
 type Struct_typesUser struct {
     ID    int64
-    Name  string
-    Email string
+    Name  string  // inferred
+    Email string  // inferred
 }
 
 type Struct_types struct {
