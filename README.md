@@ -76,6 +76,7 @@ func main() {
 - **🤖 Type Inference**: Automatically infers types from template syntax
 - **📝 Explicit Types**: Use `@param` directives for complex types (int, pointers, custom structs)
 - **📁 Template Grouping**: Organize templates in subdirectories with nested namespaces
+- **🎨 Custom Functions**: Use any custom template functions with functional option pattern
 - **🔧 go generate**: Seamless integration with Go's standard workflow
 - **💡 IDE Support**: Full autocompletion for template parameters
 
@@ -108,6 +109,7 @@ Explore working examples in the [`examples/`](examples/) directory:
 - [`04_comprehensive_template`](examples/04_comprehensive_template/) - All template syntax patterns
 - [`05_all_param_types`](examples/05_all_param_types/) - Complete `@param` reference
 - [`07_grouping`](examples/07_grouping/) - Template grouping with subdirectories
+- [`08_custom_functions`](examples/08_custom_functions/) - Custom template functions
 
 Run an example:
 ```bash
@@ -196,6 +198,7 @@ func main() {
 - **🤖 型推論**: テンプレート構文から自動的に型を推論
 - **📝 明示的な型指定**: 複雑な型（int、ポインタ、カスタム構造体）には`@param`ディレクティブを使用
 - **📁 テンプレートグルーピング**: サブディレクトリでテンプレートを整理し、ネストされた名前空間を生成
+- **🎨 カスタム関数**: functional optionパターンで任意のカスタムテンプレート関数を使用可能
 - **🔧 go generate**: Goの標準ワークフローにシームレスに統合
 - **💡 IDE サポート**: テンプレートパラメータの完全な自動補完
 
@@ -228,6 +231,7 @@ func main() {
 - [`04_comprehensive_template`](examples/04_comprehensive_template/) - すべてのテンプレート構文パターン
 - [`05_all_param_types`](examples/05_all_param_types/) - `@param`の完全リファレンス
 - [`07_grouping`](examples/07_grouping/) - サブディレクトリでのテンプレートグルーピング
+- [`08_custom_functions`](examples/08_custom_functions/) - カスタムテンプレート関数
 
 サンプルの実行:
 ```bash
