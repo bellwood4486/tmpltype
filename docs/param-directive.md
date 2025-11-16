@@ -82,7 +82,6 @@ RenderTemplate(w, Params{Age: "25"})  // ❌ Compile error
 All Go basic types are supported:
 
 ```go
-{{/* @param Name string */}}
 {{/* @param Age int */}}
 {{/* @param UserID int64 */}}
 {{/* @param Score int32 */}}
@@ -101,6 +100,8 @@ All Go basic types are supported:
 
 {{/* @param Value any */}}  // Interface{} equivalent
 ```
+
+**Note:** `string` is the default inferred type, so you don't need to explicitly declare it with `@param`.
 
 **Supported types:** `string`, `int`, `int8`, `int16`, `int32`, `int64`, `uint`, `uint8`, `uint16`, `uint32`, `uint64`, `float32`, `float64`, `bool`, `byte`, `rune`, `any`
 
@@ -229,10 +230,10 @@ Use dot notation to define nested struct fields:
 
 ```go
 {{/* @param User.ID int64 */}}
-{{/* @param User.Name string */}}
-{{/* @param User.Email string */}}
 {{/* @param User.Age int */}}
 ```
+
+Fields like `User.Name` and `User.Email` don't need `@param` declarations since they default to `string`.
 
 **Generated:**
 ```go
@@ -250,10 +251,11 @@ type TemplateParams struct {
 
 **Deep nesting:**
 ```go
-{{/* @param Config.Database.Host string */}}
 {{/* @param Config.Database.Port int */}}
 {{/* @param Config.Database.MaxConns int */}}
 ```
+
+`Config.Database.Host` doesn't need a `@param` declaration since it defaults to `string`.
 
 **Generated:**
 ```go
@@ -277,8 +279,10 @@ type TemplateParams struct {
 Define inline struct types for slice elements:
 
 ```go
-{{/* @param Items []struct{ID int64; Title string; Price float64} */}}
+{{/* @param Items []struct{ID int64; Price float64} */}}
 ```
+
+`Title` field doesn't need to be declared since it defaults to `string`.
 
 **Generated:**
 ```go
@@ -295,8 +299,10 @@ type TemplateParams struct {
 
 **Nested fields within struct:**
 ```go
-{{/* @param Records []struct{Name string; Tags []string; Score *int} */}}
+{{/* @param Records []struct{Tags []string; Score *int} */}}
 ```
+
+`Name` field doesn't need to be declared since it defaults to `string`.
 
 **Generated:**
 ```go
@@ -490,18 +496,20 @@ Since `@param` directives don't produce any output, they should always use Go te
 
 **Use semicolons in struct fields:**
 ```go
-{{/* @param Item struct{Name string; ID int} */}}
+{{/* @param Item struct{ID int} */}}
 ```
+
+String fields like `Name` don't need to be declared.
 
 ### ❌ DON'T
 
 **Don't use inline `struct{...}` at top level:**
 ```go
 // ❌ Wrong
-{{/* @param User struct{Name string} */}}
+{{/* @param User struct{ID int64} */}}
 
 // ✅ Right
-{{/* @param User.Name string */}}
+{{/* @param User.ID int64 */}}
 ```
 
 **Don't nest slices/maps directly:**
@@ -525,10 +533,10 @@ Since `@param` directives don't produce any output, they should always use Go te
 **Don't use commas in struct definitions:**
 ```go
 // ❌ Wrong
-{{/* @param Item struct{Name string, ID int} */}}
+{{/* @param Item struct{ID int, Price float64} */}}
 
 // ✅ Right
-{{/* @param Item struct{Name string; ID int} */}}
+{{/* @param Item struct{ID int; Price float64} */}}
 ```
 
 ## Complete Examples
@@ -542,7 +550,7 @@ Since `@param` directives don't produce any output, they should always use Go te
 {{/* @param Product.InStock bool */}}
 {{/* @param Product.Description *string */}}
 {{/* @param Tags []string */}}
-{{/* @param Reviews []struct{Rating int; Comment string; Author string} */}}
+{{/* @param Reviews []struct{Rating int} */}}
 
 <div class="product">
   <h2>{{ .Product.Name }} (#{{ .Product.ID }})</h2>

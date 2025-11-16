@@ -77,7 +77,6 @@ RenderTemplate(w, Params{Age: "25"})  // ❌ コンパイルエラー
 すべてのGo基本型がサポートされています：
 
 ```go
-{{/* @param Name string */}}
 {{/* @param Age int */}}
 {{/* @param UserID int64 */}}
 {{/* @param Score int32 */}}
@@ -96,6 +95,8 @@ RenderTemplate(w, Params{Age: "25"})  // ❌ コンパイルエラー
 
 {{/* @param Value any */}}  // interface{}相当
 ```
+
+**注意:** `string`はデフォルトの推論型なので、`@param`で明示的に宣言する必要はありません。
 
 ### ポインタ型（オプショナル/Null許可）
 
@@ -141,31 +142,32 @@ RenderTemplate(w, Params{Age: "25"})  // ❌ コンパイルエラー
 
 ```go
 {{/* @param User.ID int64 */}}
-{{/* @param User.Name string */}}
-{{/* @param User.Email string */}}
 {{/* @param User.Age int */}}
 
-{{/* @param Config.Database.Host string */}}
 {{/* @param Config.Database.Port int */}}
 ```
+
+`User.Name`や`User.Email`、`Config.Database.Host`などのstring型フィールドは、デフォルトで`string`なので`@param`宣言は不要です。
 
 ### 構造体のスライス
 
 スライス要素のインライン構造体型を定義：
 
 ```go
-{{/* @param Items []struct{ID int64; Title string; Price float64} */}}
-{{/* @param Records []struct{Name string; Tags []string; Score *int} */}}
+{{/* @param Items []struct{ID int64; Price float64} */}}
+{{/* @param Records []struct{Tags []string; Score *int} */}}
 ```
+
+`Title`や`Name`などのstring型フィールドは、デフォルトで`string`なので宣言は不要です。
 
 **⚠️ 重要:** 構造体フィールドの区切りには**セミコロン**（`;`）を使用し、カンマは使用しません。
 
 ```go
 // ❌ 間違い - カンマは使用不可
-{{/* @param Item struct{Name string, ID int} */}}
+{{/* @param Item struct{ID int, Price float64} */}}
 
 // ✅ 正しい - セミコロンを使用
-{{/* @param Item struct{Name string; ID int} */}}
+{{/* @param Item struct{ID int; Price float64} */}}
 ```
 
 ## 既知の制限事項
@@ -204,7 +206,6 @@ RenderTemplate(w, Params{Age: "25"})  // ❌ コンパイルエラー
 ```go
 // ✅ 動作する
 {{/* @param User.ID int64 */}}
-{{/* @param User.Name string */}}
 ```
 
 ### ❌ 深くネストされたパスとインライン構造体
@@ -258,13 +259,13 @@ RenderTemplate(w, Params{Age: "25"})  // ❌ コンパイルエラー
 
 **ネストされた構造にはドット記法を使用:**
 ```go
-{{- /* @param User.Name string */ -}}
-{{- /* @param Config.Database.Host string */ -}}
+{{- /* @param User.Age int */ -}}
+{{- /* @param Config.Database.Port int */ -}}
 ```
 
 **複雑なコレクションには`[]struct{...}`を使用:**
 ```go
-{{- /* @param Items []struct{ID int64; Name string; Price float64} */ -}}
+{{- /* @param Items []struct{ID int64; Price float64} */ -}}
 ```
 
 **オプショナルフィールドにはポインタ型を使用:**
@@ -276,8 +277,8 @@ RenderTemplate(w, Params{Age: "25"})  // ❌ コンパイルエラー
 **フィールドパスは比較的フラットに（1〜2レベル）:**
 ```go
 // ✅ 良い
-{{/* @param User.Name string */}}
-{{/* @param Config.Host string */}}
+{{/* @param User.Age int */}}
+{{/* @param Config.Port int */}}
 
 // ⚠️ 動作するが冗長
 {{/* @param App.Config.Database.Connection.Pool.MaxSize int */}}
@@ -285,7 +286,7 @@ RenderTemplate(w, Params{Age: "25"})  // ❌ コンパイルエラー
 
 **構造体フィールドにはセミコロンを使用:**
 ```go
-{{/* @param Item struct{Name string; ID int} */}}
+{{/* @param Item struct{ID int; Price float64} */}}
 ```
 
 ### ❌ 非推奨
@@ -293,10 +294,10 @@ RenderTemplate(w, Params{Age: "25"})  // ❌ コンパイルエラー
 **トップレベルでインライン`struct{...}`を使用しない:**
 ```go
 // ❌ 間違い
-{{/* @param User struct{Name string} */}}
+{{/* @param User struct{ID int64} */}}
 
 // ✅ 正しい
-{{/* @param User.Name string */}}
+{{/* @param User.ID int64 */}}
 ```
 
 **スライス/マップを直接ネストしない:**
@@ -318,7 +319,7 @@ RenderTemplate(w, Params{Age: "25"})  // ❌ コンパイルエラー
 {{/* @param Product.InStock bool */}}
 {{/* @param Product.Description *string */}}
 {{/* @param Tags []string */}}
-{{/* @param Reviews []struct{Rating int; Comment string; Author string} */}}
+{{/* @param Reviews []struct{Rating int} */}}
 
 <div class="product">
   <h2>{{ .Product.Name }} (#{{ .Product.ID }})</h2>

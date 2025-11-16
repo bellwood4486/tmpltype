@@ -2,7 +2,6 @@
 package main
 
 var footerTplSource = `{{- /* @param Year int */ -}}
-{{- /* @param CompanyName string */ -}}
 {{- /* @param Links []struct{Text string; URL string} */ -}}
     <footer>
         <div class="links">
@@ -15,8 +14,7 @@ var footerTplSource = `{{- /* @param Year int */ -}}
 </body>
 </html>`
 
-var headerTplSource = `{{- /* @param Title string */ -}}
-{{- /* @param Subtitle *string */ -}}
+var headerTplSource = `{{- /* @param Subtitle *string */ -}}
 <!DOCTYPE html>
 <html>
 <head>
@@ -29,7 +27,6 @@ var headerTplSource = `{{- /* @param Title string */ -}}
     </header>`
 
 var navTplSource = `{{- /* @param Items []struct{Name string; Link string; Active bool} */ -}}
-{{- /* @param CurrentUser.Name string */ -}}
 {{- /* @param CurrentUser.IsAdmin bool */ -}}
 <nav>
     <ul>
