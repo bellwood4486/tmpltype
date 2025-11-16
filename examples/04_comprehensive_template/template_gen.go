@@ -4,6 +4,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"sync"
 	"text/template"
 )
 
@@ -23,15 +24,52 @@ var Template = struct {
 	ControlFlow: "control_flow",
 }
 
-func newTemplate(name TemplateName, source string) *template.Template {
-	return template.Must(template.New(string(name)).Option("missingkey=error").Parse(source))
+// TemplateOption configures template initialization
+type TemplateOption func(*templateConfig)
+
+type templateConfig struct {
+	funcs template.FuncMap
 }
 
-var templates = map[TemplateName]*template.Template{
-	Template.Advanced:    newTemplate(Template.Advanced, advancedTplSource),
-	Template.BasicFields: newTemplate(Template.BasicFields, basic_fieldsTplSource),
-	Template.Collections: newTemplate(Template.Collections, collectionsTplSource),
-	Template.ControlFlow: newTemplate(Template.ControlFlow, control_flowTplSource),
+// WithFuncs sets custom template functions
+func WithFuncs(funcs template.FuncMap) TemplateOption {
+	return func(c *templateConfig) {
+		c.funcs = funcs
+	}
+}
+
+var templates map[TemplateName]*template.Template
+var initOnce sync.Once
+
+// InitTemplates initializes all templates with the given options.
+// Must be called before using any render functions.
+//
+// Example:
+//
+//	InitTemplates() // without custom functions
+//	InitTemplates(WithFuncs(GetTemplateFuncs())) // with custom functions
+func InitTemplates(opts ...TemplateOption) {
+	initOnce.Do(func() {
+		config := &templateConfig{}
+		for _, opt := range opts {
+			opt(config)
+		}
+
+		templates = map[TemplateName]*template.Template{
+			Template.Advanced:    newTemplate(Template.Advanced, advancedTplSource, config),
+			Template.BasicFields: newTemplate(Template.BasicFields, basic_fieldsTplSource, config),
+			Template.Collections: newTemplate(Template.Collections, collectionsTplSource, config),
+			Template.ControlFlow: newTemplate(Template.ControlFlow, control_flowTplSource, config),
+		}
+	})
+}
+
+func newTemplate(name TemplateName, source string, config *templateConfig) *template.Template {
+	t := template.New(string(name))
+	if config.funcs != nil {
+		t = t.Funcs(config.funcs)
+	}
+	return template.Must(t.Option("missingkey=error").Parse(source))
 }
 
 // Templates returns a map of all templates
@@ -41,6 +79,9 @@ func Templates() map[TemplateName]*template.Template {
 
 // Render renders a template by name with the given data
 func Render(w io.Writer, name TemplateName, data any) error {
+	if templates == nil {
+		return fmt.Errorf("templates not initialized: call InitTemplates() first")
+	}
 	tmpl, ok := templates[name]
 	if !ok {
 		return fmt.Errorf("template %q not found", name)
@@ -87,6 +128,9 @@ type Advanced struct {
 
 // RenderAdvanced renders the advanced template
 func RenderAdvanced(w io.Writer, p Advanced) error {
+	if templates == nil {
+		return fmt.Errorf("templates not initialized: call InitTemplates() first")
+	}
 	tmpl, ok := templates[Template.Advanced]
 	if !ok {
 		return fmt.Errorf("template %q not found", Template.Advanced)
@@ -111,6 +155,9 @@ type BasicFields struct {
 
 // RenderBasicFields renders the basic_fields template
 func RenderBasicFields(w io.Writer, p BasicFields) error {
+	if templates == nil {
+		return fmt.Errorf("templates not initialized: call InitTemplates() first")
+	}
 	tmpl, ok := templates[Template.BasicFields]
 	if !ok {
 		return fmt.Errorf("template %q not found", Template.BasicFields)
@@ -136,6 +183,9 @@ type Collections struct {
 
 // RenderCollections renders the collections template
 func RenderCollections(w io.Writer, p Collections) error {
+	if templates == nil {
+		return fmt.Errorf("templates not initialized: call InitTemplates() first")
+	}
 	tmpl, ok := templates[Template.Collections]
 	if !ok {
 		return fmt.Errorf("template %q not found", Template.Collections)
@@ -161,6 +211,9 @@ type ControlFlow struct {
 
 // RenderControlFlow renders the control_flow template
 func RenderControlFlow(w io.Writer, p ControlFlow) error {
+	if templates == nil {
+		return fmt.Errorf("templates not initialized: call InitTemplates() first")
+	}
 	tmpl, ok := templates[Template.ControlFlow]
 	if !ok {
 		return fmt.Errorf("template %q not found", Template.ControlFlow)

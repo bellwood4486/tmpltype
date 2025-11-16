@@ -6,6 +6,7 @@ import (
 )
 
 func main() {
+	InitTemplates()
 	// Example: Using template with Japanese filename
 	fmt.Println("=== Example: Template with Japanese filename (メール.tmpl) ===")
 	var buf bytes.Buffer
