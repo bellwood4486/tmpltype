@@ -14,11 +14,9 @@ type TemplateName string
 
 // Template provides type-safe access to template names
 var Template = struct {
-	CustomFuncTest TemplateName
-	Email          TemplateName
+	Email TemplateName
 }{
-	CustomFuncTest: "custom_func_test",
-	Email:          "email",
+	Email: "email",
 }
 
 // TemplateOption configures template initialization
@@ -53,8 +51,7 @@ func InitTemplates(opts ...TemplateOption) {
 		}
 
 		templates = map[TemplateName]*template.Template{
-			Template.CustomFuncTest: newTemplate(Template.CustomFuncTest, custom_func_testTplSource, config),
-			Template.Email:          newTemplate(Template.Email, emailTplSource, config),
+			Template.Email: newTemplate(Template.Email, emailTplSource, config),
 		}
 	})
 }
@@ -82,29 +79,6 @@ func Render(w io.Writer, name TemplateName, data any) error {
 		return fmt.Errorf("template %q not found", name)
 	}
 	return tmpl.Execute(w, data)
-}
-
-// ============================================================
-// custom_func_test template
-// ============================================================
-
-// CustomFuncTest represents parameters for custom_func_test template
-type CustomFuncTest struct {
-	Message string
-	Title   string
-	URL     string
-}
-
-// RenderCustomFuncTest renders the custom_func_test template
-func RenderCustomFuncTest(w io.Writer, p CustomFuncTest) error {
-	if templates == nil {
-		return fmt.Errorf("templates not initialized: call InitTemplates() first")
-	}
-	tmpl, ok := templates[Template.CustomFuncTest]
-	if !ok {
-		return fmt.Errorf("template %q not found", Template.CustomFuncTest)
-	}
-	return tmpl.Execute(w, p)
 }
 
 // ============================================================

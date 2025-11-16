@@ -19,5 +19,8 @@
     <p>Price: ${{ comma .Price }}</p>
 
     <p>URL: {{ default "https://example.com" .URL }}</p>
+
+    {{/* Example of custom function not in preset */}}
+    <p>Custom: {{ myCustomFunction .Title }}</p>
 </body>
 </html>

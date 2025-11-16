@@ -10,10 +10,14 @@ func main() {
 	// Initialize templates with custom functions
 	InitTemplates(WithFuncs(GetTemplateFuncs()))
 
-	fmt.Println("=== Example 1: Email Template ===")
-	var buf1 bytes.Buffer
-	err := RenderEmail(&buf1, Email{
-		Title: "welcome email",
+	fmt.Println("=== Custom Functions Example ===")
+	fmt.Println("This example demonstrates custom template functions, including")
+	fmt.Println("functions that are not in the preset list (e.g., myCustomFunction).")
+	fmt.Println()
+
+	var buf bytes.Buffer
+	err := RenderEmail(&buf, Email{
+		Title: "Welcome Email",
 		User: EmailUser{
 			Name:  "Alice Smith",
 			Email: "ALICE@EXAMPLE.COM",
@@ -28,22 +32,7 @@ func main() {
 		panic(err)
 	}
 
-	fmt.Println(buf1.String())
-
-	// Test custom function with dynamic resolution
-	fmt.Println("\n=== Example 2: Custom Functions Test ===")
-	var buf2 bytes.Buffer
-	err = RenderCustomFuncTest(&buf2, CustomFuncTest{
-		Title:   "Hello World",
-		Message: "Testing Custom Functions",
-		URL:     "https://example.com",
-	})
-
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Println(buf2.String())
+	fmt.Println(buf.String())
 
 	// Example without custom functions (should fail with clear error)
 	fmt.Println("\n=== Without initialization ===")
