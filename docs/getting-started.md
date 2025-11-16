@@ -97,6 +97,9 @@ import (
 )
 
 func main() {
+    // Initialize templates (required)
+    InitTemplates()
+
     var buf bytes.Buffer
 
     err := RenderEmail(&buf, Email{
@@ -331,6 +334,82 @@ _ = Render(&buf, templateName, data)
 
 For organizing templates in subdirectories, see the [Template Grouping documentation](template-grouping.md).
 
+## Using Custom Template Functions
+
+`tmpltype` supports custom template functions through a functional option pattern.
+
+### Example: Email Template with Custom Functions
+
+Create `templates/email.tmpl`:
+
+```html
+{{/* @param CreatedAt time.Time */}}
+<h1>{{ .Title | upper }}</h1>
+<p>Created: {{ formatDate .CreatedAt }}</p>
+<p>{{ myCustomFunction .Message }}</p>
+```
+
+Create `funcs.go` with your custom functions:
+
+```go
+package main
+
+import (
+    "html/template"
+    "strings"
+    "time"
+)
+
+func GetTemplateFuncs() template.FuncMap {
+    return template.FuncMap{
+        "upper": strings.ToUpper,
+        "formatDate": func(t time.Time) string {
+            return t.Format("2006-01-02")
+        },
+        "myCustomFunction": func(s string) string {
+            return "✨ " + s + " ✨"
+        },
+    }
+}
+```
+
+Initialize templates with your custom functions:
+
+```go
+package main
+
+import (
+    "bytes"
+    "fmt"
+    "time"
+)
+
+func main() {
+    // Initialize templates with custom functions
+    InitTemplates(WithFuncs(GetTemplateFuncs()))
+
+    var buf bytes.Buffer
+    err := RenderEmail(&buf, Email{
+        Title:     "Welcome",
+        Message:   "Hello World",
+        CreatedAt: time.Now(),
+    })
+
+    if err != nil {
+        panic(err)
+    }
+
+    fmt.Println(buf.String())
+}
+```
+
+**Key Points:**
+- Call `InitTemplates()` with `WithFuncs()` option before rendering
+- Custom functions work seamlessly with type inference
+- Functions not in the preset list are automatically handled during code generation
+
+For a complete example, see [Example 08: Custom Functions](../examples/08_custom_functions/).
+
 ## Next Steps
 
 Now that you understand the basics, explore:
@@ -347,5 +426,6 @@ Now that you understand the basics, explore:
 2. **[Example 02: Param Directive](../examples/02_param_directive/)** - Learn `@param` usage
 3. **[Example 03: Multi Template](../examples/03_multi_template/)** - Multiple templates
 4. **[Example 07: Grouping](../examples/07_grouping/)** - Template organization
+5. **[Example 08: Custom Functions](../examples/08_custom_functions/)** - Using custom template functions
 
 Each example is fully runnable with `go generate && go run .`
