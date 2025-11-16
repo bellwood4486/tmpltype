@@ -6,6 +6,8 @@ import (
 )
 
 func main() {
+	InitTemplates()
+
 	fmt.Println("=== Example: Multi-template support ===")
 
 	// Use Templates() map function

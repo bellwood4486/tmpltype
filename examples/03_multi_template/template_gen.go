@@ -4,6 +4,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"sync"
 	"text/template"
 )
 
@@ -21,14 +22,51 @@ var Template = struct {
 	Nav:    "nav",
 }
 
-func newTemplate(name TemplateName, source string) *template.Template {
-	return template.Must(template.New(string(name)).Option("missingkey=error").Parse(source))
+// TemplateOption configures template initialization
+type TemplateOption func(*templateConfig)
+
+type templateConfig struct {
+	funcs template.FuncMap
 }
 
-var templates = map[TemplateName]*template.Template{
-	Template.Footer: newTemplate(Template.Footer, footerTplSource),
-	Template.Header: newTemplate(Template.Header, headerTplSource),
-	Template.Nav:    newTemplate(Template.Nav, navTplSource),
+// WithFuncs sets custom template functions
+func WithFuncs(funcs template.FuncMap) TemplateOption {
+	return func(c *templateConfig) {
+		c.funcs = funcs
+	}
+}
+
+var templates map[TemplateName]*template.Template
+var initOnce sync.Once
+
+// InitTemplates initializes all templates with the given options.
+// Must be called before using any render functions.
+//
+// Example:
+//
+//	InitTemplates() // without custom functions
+//	InitTemplates(WithFuncs(GetTemplateFuncs())) // with custom functions
+func InitTemplates(opts ...TemplateOption) {
+	initOnce.Do(func() {
+		config := &templateConfig{}
+		for _, opt := range opts {
+			opt(config)
+		}
+
+		templates = map[TemplateName]*template.Template{
+			Template.Footer: newTemplate(Template.Footer, footerTplSource, config),
+			Template.Header: newTemplate(Template.Header, headerTplSource, config),
+			Template.Nav:    newTemplate(Template.Nav, navTplSource, config),
+		}
+	})
+}
+
+func newTemplate(name TemplateName, source string, config *templateConfig) *template.Template {
+	t := template.New(string(name))
+	if config.funcs != nil {
+		t = t.Funcs(config.funcs)
+	}
+	return template.Must(t.Option("missingkey=error").Parse(source))
 }
 
 // Templates returns a map of all templates
@@ -38,6 +76,9 @@ func Templates() map[TemplateName]*template.Template {
 
 // Render renders a template by name with the given data
 func Render(w io.Writer, name TemplateName, data any) error {
+	if templates == nil {
+		return fmt.Errorf("templates not initialized: call InitTemplates() first")
+	}
 	tmpl, ok := templates[name]
 	if !ok {
 		return fmt.Errorf("template %q not found", name)
@@ -63,6 +104,9 @@ type Footer struct {
 
 // RenderFooter renders the footer template
 func RenderFooter(w io.Writer, p Footer) error {
+	if templates == nil {
+		return fmt.Errorf("templates not initialized: call InitTemplates() first")
+	}
 	tmpl, ok := templates[Template.Footer]
 	if !ok {
 		return fmt.Errorf("template %q not found", Template.Footer)
@@ -82,6 +126,9 @@ type Header struct {
 
 // RenderHeader renders the header template
 func RenderHeader(w io.Writer, p Header) error {
+	if templates == nil {
+		return fmt.Errorf("templates not initialized: call InitTemplates() first")
+	}
 	tmpl, ok := templates[Template.Header]
 	if !ok {
 		return fmt.Errorf("template %q not found", Template.Header)
@@ -112,6 +159,9 @@ type Nav struct {
 
 // RenderNav renders the nav template
 func RenderNav(w io.Writer, p Nav) error {
+	if templates == nil {
+		return fmt.Errorf("templates not initialized: call InitTemplates() first")
+	}
 	tmpl, ok := templates[Template.Nav]
 	if !ok {
 		return fmt.Errorf("template %q not found", Template.Nav)

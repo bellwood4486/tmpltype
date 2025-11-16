@@ -6,6 +6,8 @@ import (
 )
 
 func main() {
+	InitTemplates()
+
 	fmt.Println("=== Example: @param directive ===")
 	var buf bytes.Buffer
 	_ = RenderUser(&buf, User{

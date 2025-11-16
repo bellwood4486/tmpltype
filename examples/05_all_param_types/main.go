@@ -6,6 +6,7 @@ import (
 )
 
 func main() {
+	InitTemplates()
 	// Helper functions to create pointer values
 	strPtr := func(s string) *string { return &s }
 	intPtr := func(i int) *int { return &i }

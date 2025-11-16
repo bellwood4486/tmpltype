@@ -6,6 +6,7 @@ import (
 )
 
 func main() {
+	InitTemplates()
 	fmt.Println("=== Example: Template Grouping (Mixed Flat + Grouped) ===")
 	fmt.Println()
 
