@@ -6,6 +6,7 @@ import (
 	"io"
 	"sync"
 	"text/template"
+	"time"
 )
 
 // TemplateName is a type-safe template name
@@ -13,13 +14,9 @@ type TemplateName string
 
 // Template provides type-safe access to template names
 var Template = struct {
-	Footer TemplateName
-	Header TemplateName
-	Nav    TemplateName
+	Email TemplateName
 }{
-	Footer: "footer",
-	Header: "header",
-	Nav:    "nav",
+	Email: "email",
 }
 
 // TemplateOption configures template initialization
@@ -54,9 +51,7 @@ func InitTemplates(opts ...TemplateOption) {
 		}
 
 		templates = map[TemplateName]*template.Template{
-			Template.Footer: newTemplate(Template.Footer, footerTplSource, config),
-			Template.Header: newTemplate(Template.Header, headerTplSource, config),
-			Template.Nav:    newTemplate(Template.Nav, navTplSource, config),
+			Template.Email: newTemplate(Template.Email, emailTplSource, config),
 		}
 	})
 }
@@ -87,84 +82,32 @@ func Render(w io.Writer, name TemplateName, data any) error {
 }
 
 // ============================================================
-// footer template
+// email template
 // ============================================================
 
-type FooterLinksItem struct {
-	Text string
-	URL  string
+type EmailUser struct {
+	Email string
+	Name  string
 }
 
-// Footer represents parameters for footer template
-type Footer struct {
-	CompanyName string
-	Links       []FooterLinksItem
-	Year        int
+// Email represents parameters for email template
+type Email struct {
+	CreatedAt time.Time
+	Message   string
+	Price     int
+	Title     string
+	URL       string
+	User      EmailUser
 }
 
-// RenderFooter renders the footer template
-func RenderFooter(w io.Writer, p Footer) error {
+// RenderEmail renders the email template
+func RenderEmail(w io.Writer, p Email) error {
 	if templates == nil {
 		return fmt.Errorf("templates not initialized: call InitTemplates() first")
 	}
-	tmpl, ok := templates[Template.Footer]
+	tmpl, ok := templates[Template.Email]
 	if !ok {
-		return fmt.Errorf("template %q not found", Template.Footer)
-	}
-	return tmpl.Execute(w, p)
-}
-
-// ============================================================
-// header template
-// ============================================================
-
-// Header represents parameters for header template
-type Header struct {
-	Subtitle *string
-	Title    string
-}
-
-// RenderHeader renders the header template
-func RenderHeader(w io.Writer, p Header) error {
-	if templates == nil {
-		return fmt.Errorf("templates not initialized: call InitTemplates() first")
-	}
-	tmpl, ok := templates[Template.Header]
-	if !ok {
-		return fmt.Errorf("template %q not found", Template.Header)
-	}
-	return tmpl.Execute(w, p)
-}
-
-// ============================================================
-// nav template
-// ============================================================
-
-type NavItemsItem struct {
-	Active bool
-	Link   string
-	Name   string
-}
-
-type NavCurrentUser struct {
-	IsAdmin bool
-	Name    string
-}
-
-// Nav represents parameters for nav template
-type Nav struct {
-	CurrentUser NavCurrentUser
-	Items       []NavItemsItem
-}
-
-// RenderNav renders the nav template
-func RenderNav(w io.Writer, p Nav) error {
-	if templates == nil {
-		return fmt.Errorf("templates not initialized: call InitTemplates() first")
-	}
-	tmpl, ok := templates[Template.Nav]
-	if !ok {
-		return fmt.Errorf("template %q not found", Template.Nav)
+		return fmt.Errorf("template %q not found", Template.Email)
 	}
 	return tmpl.Execute(w, p)
 }

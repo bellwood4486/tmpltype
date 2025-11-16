@@ -97,6 +97,9 @@ import (
 )
 
 func main() {
+    // テンプレートを初期化（必須）
+    InitTemplates()
+
     var buf bytes.Buffer
 
     err := RenderEmail(&buf, Email{
@@ -331,6 +334,82 @@ _ = Render(&buf, templateName, data)
 
 サブディレクトリでのテンプレート整理については、[テンプレートグルーピングドキュメント](template-grouping.md)を参照してください。
 
+## カスタムテンプレート関数を使う
+
+`tmpltype`はfunctional optionパターンでカスタムテンプレート関数をサポートします。
+
+### 例: カスタム関数を使ったメールテンプレート
+
+`templates/email.tmpl`を作成：
+
+```html
+{{/* @param CreatedAt time.Time */}}
+<h1>{{ .Title | upper }}</h1>
+<p>作成日: {{ formatDate .CreatedAt }}</p>
+<p>{{ myCustomFunction .Message }}</p>
+```
+
+`funcs.go`にカスタム関数を作成：
+
+```go
+package main
+
+import (
+    "html/template"
+    "strings"
+    "time"
+)
+
+func GetTemplateFuncs() template.FuncMap {
+    return template.FuncMap{
+        "upper": strings.ToUpper,
+        "formatDate": func(t time.Time) string {
+            return t.Format("2006-01-02")
+        },
+        "myCustomFunction": func(s string) string {
+            return "✨ " + s + " ✨"
+        },
+    }
+}
+```
+
+カスタム関数を使ってテンプレートを初期化：
+
+```go
+package main
+
+import (
+    "bytes"
+    "fmt"
+    "time"
+)
+
+func main() {
+    // カスタム関数でテンプレートを初期化
+    InitTemplates(WithFuncs(GetTemplateFuncs()))
+
+    var buf bytes.Buffer
+    err := RenderEmail(&buf, Email{
+        Title:     "ようこそ",
+        Message:   "こんにちは世界",
+        CreatedAt: time.Now(),
+    })
+
+    if err != nil {
+        panic(err)
+    }
+
+    fmt.Println(buf.String())
+}
+```
+
+**重要なポイント:**
+- レンダリング前に`WithFuncs()`オプションで`InitTemplates()`を呼び出す
+- カスタム関数は型推論とシームレスに動作
+- プリセットリストにない関数は、コード生成時に自動的に処理される
+
+完全な例は[サンプル 08: カスタム関数](../../examples/08_custom_functions/)を参照してください。
+
 ## 次のステップ
 
 基本を理解したら、以下を探索してください：
@@ -347,5 +426,6 @@ _ = Render(&buf, templateName, data)
 2. **[サンプル 02: Paramディレクティブ](../../examples/02_param_directive/)** - `@param`の使い方を学ぶ
 3. **[サンプル 03: 複数テンプレート](../../examples/03_multi_template/)** - 複数テンプレート
 4. **[サンプル 07: グルーピング](../../examples/07_grouping/)** - テンプレート整理
+5. **[サンプル 08: カスタム関数](../../examples/08_custom_functions/)** - カスタムテンプレート関数の使用
 
 各サンプルは`go generate && go run .`で実行できます。

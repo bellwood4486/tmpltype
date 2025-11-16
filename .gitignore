@@ -5,4 +5,11 @@
 .idea
 
 # ignore example binaries
-examples/*/[0-9]*_*
+examples/01_basic/01_basic
+examples/02_param_directive/02_param_directive
+examples/03_multi_template/03_multi_template
+examples/04_comprehensive_template/04_comprehensive_template
+examples/05_all_param_types/05_all_param_types
+examples/06_non_ascii_filename/06_non_ascii_filename
+examples/07_grouping/07_grouping
+examples/08_custom_functions/08_custom_functions
