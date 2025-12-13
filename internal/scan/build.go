@@ -85,11 +85,8 @@ func buildTree(schema *Schema, info map[string]*pathInfo, kindMap map[string]Kin
 		kind := kindMap[key]
 
 		// 親パスが Slice の場合、このパスは要素のフィールドとして扱う
-		insertField(schema, parts, kind, kindMap)
+		insertField(schema, parts, kind, kindMap, info)
 	}
-
-	// 後処理: 空の Slice 要素を String に変換
-	normalizeEmptySliceElements(schema)
 }
 
 // sortByLength はパスを長さ順（短い順）にソートします。
@@ -105,7 +102,7 @@ func sortByLength(paths []string) {
 }
 
 // insertField はパスに対応するフィールドをスキーマに挿入します。
-func insertField(schema *Schema, parts []string, kind Kind, kindMap map[string]Kind) {
+func insertField(schema *Schema, parts []string, kind Kind, kindMap map[string]Kind, info map[string]*pathInfo) {
 	if len(parts) == 0 {
 		return
 	}
@@ -128,7 +125,7 @@ func insertField(schema *Schema, parts []string, kind Kind, kindMap map[string]K
 	}
 
 	// Slice/Map の場合は Elem を確保
-	ensureElem(cur)
+	ensureElem(cur, name, info)
 
 	// 単一セグメントの場合は終了
 	if len(parts) == 1 {
@@ -141,10 +138,17 @@ func insertField(schema *Schema, parts []string, kind Kind, kindMap map[string]K
 		// Slice の場合は要素に潜る
 		if cur.Kind == KindSlice {
 			if cur.Elem == nil {
+				// Slice 要素の Kind を決定: 子パスがあれば Struct、なければ String
+				elemKind := KindString
+				var children map[string]*Field
+				if pi, ok := info[pathSoFar]; ok && pi.hasChild {
+					elemKind = KindStruct
+					children = map[string]*Field{}
+				}
 				cur.Elem = &Field{
 					Name:     cur.Name + "Item",
-					Kind:     KindStruct,
-					Children: map[string]*Field{},
+					Kind:     elemKind,
+					Children: children,
 				}
 			}
 			cur = cur.Elem
@@ -195,15 +199,23 @@ func insertField(schema *Schema, parts []string, kind Kind, kindMap map[string]K
 }
 
 // ensureElem は Slice/Map フィールドの Elem を確保します。
-func ensureElem(f *Field) {
+// Slice 要素の Kind は info から子パスの有無を判定して決定します。
+func ensureElem(f *Field, path string, info map[string]*pathInfo) {
 	if f == nil {
 		return
 	}
 	if f.Kind == KindSlice && f.Elem == nil {
+		// Slice 要素の Kind を決定: 子パスがあれば Struct、なければ String
+		elemKind := KindString
+		var children map[string]*Field
+		if pi, ok := info[path]; ok && pi.hasChild {
+			elemKind = KindStruct
+			children = map[string]*Field{}
+		}
 		f.Elem = &Field{
 			Name:     f.Name + "Item",
-			Kind:     KindStruct,
-			Children: map[string]*Field{},
+			Kind:     elemKind,
+			Children: children,
 		}
 	}
 	if f.Kind == KindMap && f.Elem == nil {
@@ -214,30 +226,3 @@ func ensureElem(f *Field) {
 	}
 }
 
-// normalizeEmptySliceElements は KindSlice フィールドの要素が空の構造体の場合、
-// 要素の Kind を KindString に変更します。
-func normalizeEmptySliceElements(s *Schema) {
-	var normalize func(f *Field)
-	normalize = func(f *Field) {
-		if f == nil {
-			return
-		}
-
-		if f.Kind == KindSlice && f.Elem != nil {
-			if f.Elem.Kind == KindStruct && len(f.Elem.Children) == 0 {
-				f.Elem.Kind = KindString
-				f.Elem.Children = nil
-			} else {
-				normalize(f.Elem)
-			}
-		}
-
-		for _, child := range f.Children {
-			normalize(child)
-		}
-	}
-
-	for _, field := range s.Fields {
-		normalize(field)
-	}
-}
