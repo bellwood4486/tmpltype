@@ -97,23 +97,19 @@ func buildTree(schema *Schema, info map[string]*pathInfo, kindMap map[string]Kin
 		return len(paths[i]) < len(paths[j])
 	})
 
-	// 1. トップレベルフィールドをすべて作成
+	// パスを処理（短い順なので親が先に処理される）
 	for _, path := range paths {
 		parts := strings.Split(path, ".")
+		kind := kindMap[path]
+
 		if len(parts) == 1 {
+			// トップレベルフィールド
 			name := parts[0]
-			kind := kindMap[path]
 			if schema.Fields[name] == nil {
 				schema.Fields[name] = createField(name, kind, path, info)
 			}
-		}
-	}
-
-	// 2. 子フィールドを作成
-	for _, path := range paths {
-		parts := strings.Split(path, ".")
-		if len(parts) > 1 {
-			kind := kindMap[path]
+		} else {
+			// 子フィールド（親は既に存在）
 			insertField(schema, parts, kind, info)
 		}
 	}
