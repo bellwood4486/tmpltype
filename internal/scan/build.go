@@ -20,9 +20,20 @@ func buildSchema(insp inspection) Schema {
 		return Schema{Fields: map[string]*Field{}}
 	}
 
+	info := buildPathInfoMap(insp.refs)
+	kindMap := buildKindMap(info)
+	schema := Schema{Fields: map[string]*Field{}}
+	buildTree(&schema, info, kindMap)
+
+	return schema
+}
+
+// buildPathInfoMap は fieldRef リストから pathInfo マップを構築します。
+// 各パスの usage を集計し、親パスを補完し、子パスの有無を判定します。
+func buildPathInfoMap(refs []fieldRef) map[string]*pathInfo {
 	// 1. パスごとに usage を集計
 	info := make(map[string]*pathInfo)
-	for _, ref := range insp.refs {
+	for _, ref := range refs {
 		key := strings.Join(ref.path, ".")
 		if info[key] == nil {
 			info[key] = &pathInfo{usages: make(map[usage]bool)}
@@ -55,17 +66,16 @@ func buildSchema(insp inspection) Schema {
 		}
 	}
 
-	// 4. 各パスの Kind を決定
+	return info
+}
+
+// buildKindMap は pathInfo マップから Kind マップを構築します。
+func buildKindMap(info map[string]*pathInfo) map[string]Kind {
 	kindMap := make(map[string]Kind)
 	for key, pi := range info {
 		kindMap[key] = determineKind(pi)
 	}
-
-	// 5. スキーマ構造を構築
-	schema := Schema{Fields: map[string]*Field{}}
-	buildTree(&schema, info, kindMap)
-
-	return schema
+	return kindMap
 }
 
 // determineKind はパス情報から Kind を決定します。
