@@ -38,8 +38,11 @@ flowchart LR
     end
 
     subgraph scan["internal/scan"]
-        SCAN_MAIN["AST解析<br/>スコープ追跡<br/>種別(Kind)推論"]
+        INSPECT["1. Inspection<br/>フィールド参照収集<br/>スコープ追跡"]
+        BUILD["2. Build<br/>使用パターン集計<br/>Kind決定"]
         KIND["Kind:<br/>String | Struct<br/>Slice | Map"]
+        INSPECT --> BUILD
+        BUILD --> KIND
     end
 
     subgraph typing["internal/typing"]
@@ -59,9 +62,8 @@ flowchart LR
     end
 
     TMPL --> CMD_MAIN
-    CMD_MAIN -->|"*.tmpl"| SCAN_MAIN
-    SCAN_MAIN --> KIND
-    SCAN_MAIN -->|"Schema"| TYPE_MAIN
+    CMD_MAIN -->|"*.tmpl"| INSPECT
+    KIND -->|"Schema"| TYPE_MAIN
     TYPE_MAIN --> MAGIC
     TYPE_MAIN -->|"TypedSchema"| GEN_MAIN
     GEN_MAIN --> OUT1
@@ -75,11 +77,15 @@ The code generation pipeline flows through four internal packages:
    - Scans template files (supports flat `dir/*.tmpl` and grouped `dir/*/*.tmpl`)
    - Invokes the generation pipeline
 
-2. **internal/scan** - Template AST analysis
-   - Parses Go templates and walks the AST
-   - Tracks dot (`.`) scope through `with`, `range`, `if` blocks
-   - Infers schema: leaf fields → `string`, `range` → `[]struct{}`, `index` → `map[string]string`
-   - Handles unknown custom functions by dynamically adding dummies during parse
+2. **internal/scan** - Template AST analysis (two-pass architecture)
+   - **Inspection phase** (`inspection.go`): Walks template AST to collect field references with usage types
+     - Tracks dot (`.`) scope through `with`, `range`, `if` blocks
+     - Records usage patterns (Leaf, Range, RangeMap, Index, Scope) without making type decisions
+     - Handles unknown custom functions by dynamically adding dummies during parse
+   - **Build phase** (`build.go`): Constructs schema from collected references
+     - Aggregates usage patterns and determines child relationships
+     - Decides Kind based on complete information: Map > Slice > Struct > String
+     - No promotion/replacement logic needed (all info available upfront)
 
 3. **internal/typing** - Type resolution
    - Applies default type inference from scan results
