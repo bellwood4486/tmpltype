@@ -175,10 +175,17 @@ type CollectionsItemsItem struct {
 	Title       string
 }
 
+type CollectionsUsersValue struct {
+	Email string
+	Name  string
+	Role  string
+}
+
 // Collections represents parameters for collections template
 type Collections struct {
 	Items []CollectionsItemsItem
 	Meta  map[string]string
+	Users map[string]CollectionsUsersValue
 }
 
 // RenderCollections renders the collections template

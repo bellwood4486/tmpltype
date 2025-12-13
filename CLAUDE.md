@@ -85,6 +85,7 @@ The code generation pipeline flows through four internal packages:
    - **Build phase** (`build.go`): Constructs schema from collected references
      - Aggregates usage patterns and determines child relationships
      - Decides Kind based on complete information: Map > Slice > Struct > String
+     - Supports complex types: Slice/Map elements can be Struct if child fields are detected
      - No promotion/replacement logic needed (all info available upfront)
 
 3. **internal/typing** - Type resolution

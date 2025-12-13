@@ -155,9 +155,24 @@ func insertField(schema *Schema, parts []string, kind Kind, info map[string]*pat
 			cur = cur.Elem
 		}
 
-		// Map の場合は値は String なので子フィールドは追加しない
+		// Map の場合は要素に潜る
 		if cur.Kind == KindMap {
-			return
+			if cur.Elem == nil {
+				// 親パスから Elem の Kind を決定
+				parentPath := strings.Join(parts[:i], ".")
+				elemKind := KindString
+				var children map[string]*Field
+				if pi, ok := info[parentPath]; ok && pi.hasChild {
+					elemKind = KindStruct
+					children = map[string]*Field{}
+				}
+				cur.Elem = &Field{
+					Name:     cur.Name + "Value",
+					Kind:     elemKind,
+					Children: children,
+				}
+			}
+			cur = cur.Elem
 		}
 
 		if cur.Children == nil {
@@ -206,11 +221,18 @@ func createField(name string, kind Kind, path string, info map[string]*pathInfo)
 		}
 	}
 
-	// Map の場合は Elem を作成
+	// Map の場合は Elem を作成（子パスの有無で Kind を決定）
 	if kind == KindMap {
+		elemKind := KindString
+		var children map[string]*Field
+		if pi, ok := info[path]; ok && pi.hasChild {
+			elemKind = KindStruct
+			children = map[string]*Field{}
+		}
 		field.Elem = &Field{
-			Name: util.Export(name) + "Value",
-			Kind: KindString,
+			Name:     util.Export(name) + "Value",
+			Kind:     elemKind,
+			Children: children,
 		}
 	}
 

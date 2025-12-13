@@ -44,7 +44,7 @@ func main() {
 
 	// 3. Render collections template
 	fmt.Println("--- Template 3: collections ---")
-	fmt.Println("Features: 5. Range Over Slice & 6. Map Access with Index Function")
+	fmt.Println("Features: 5. Range Over Slice, 6. Map Access with Index Function, 7. Map with Struct Values")
 	fmt.Println()
 	var buf3 bytes.Buffer
 	_ = RenderCollections(&buf3, Collections{
@@ -69,6 +69,23 @@ func main() {
 			"env":     "production",
 			"version": "2.4.1",
 			"build":   "2024-12-30T10:00:00Z",
+		},
+		Users: map[string]CollectionsUsersValue{
+			"alice": {
+				Name:  "Alice Johnson",
+				Email: "alice@example.com",
+				Role:  "Engineering Manager",
+			},
+			"bob": {
+				Name:  "Bob Smith",
+				Email: "bob@example.com",
+				Role:  "Senior Developer",
+			},
+			"carol": {
+				Name:  "Carol Williams",
+				Email: "carol@example.com",
+				Role:  "Product Manager",
+			},
 		},
 	})
 	fmt.Println(buf3.String())
