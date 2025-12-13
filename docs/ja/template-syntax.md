@@ -203,6 +203,14 @@ type TemplateParams struct {
 
 **回避策:** 関数で使用されるフィールドは推論されますが、関数の結果は推論されません
 
+❌ **`index`結果へのフィールドアクセス**
+```go
+// index結果へのフィールドアクセスは追跡されない
+{{ (index .Users "admin").Name }}
+```
+
+**回避策:** 2変数rangeを使用: `{{ range $k, $v := .Users }}{{ $v.Name }}{{ end }}`、または`@param`でmap値の型を指定
+
 ## サンプル
 
 ### 完全な例

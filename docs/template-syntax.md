@@ -460,6 +460,14 @@ type TemplateParams struct {
 
 **Workaround:** Simple field references work; use `@param` for complex logic
 
+❌ **Field access on `index` result**
+```go
+// Field access on index result not tracked
+{{ (index .Users "admin").Name }}
+```
+
+**Workaround:** Use two-variable range instead: `{{ range $k, $v := .Users }}{{ $v.Name }}{{ end }}`, or use `@param` to specify the map value type
+
 ## Examples
 
 ### Complete Example
