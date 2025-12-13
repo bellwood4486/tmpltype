@@ -8,25 +8,25 @@ import (
 
 // pathInfo はあるパスについて集計された情報を保持します。
 type pathInfo struct {
-	usages   map[Usage]bool
+	usages   map[usage]bool
 	hasChild bool // より長いパス（子孫）が存在するか
 }
 
-// BuildSchema は Inspection からスキーマを構築します。
+// buildSchema は inspection からスキーマを構築します。
 // 全てのフィールド参照を見て、各パスの型を決定します。
-func BuildSchema(insp Inspection) Schema {
-	if len(insp.Refs) == 0 {
+func buildSchema(insp inspection) Schema {
+	if len(insp.refs) == 0 {
 		return Schema{Fields: map[string]*Field{}}
 	}
 
-	// 1. パスごとに Usage を集計
+	// 1. パスごとに usage を集計
 	info := make(map[string]*pathInfo)
-	for _, ref := range insp.Refs {
-		key := strings.Join(ref.Path, ".")
+	for _, ref := range insp.refs {
+		key := strings.Join(ref.path, ".")
 		if info[key] == nil {
-			info[key] = &pathInfo{usages: make(map[Usage]bool)}
+			info[key] = &pathInfo{usages: make(map[usage]bool)}
 		}
-		info[key].usages[ref.Usage] = true
+		info[key].usages[ref.usage] = true
 	}
 
 	// 2. 各パスについて子パスが存在するか判定
@@ -55,13 +55,13 @@ func BuildSchema(insp Inspection) Schema {
 // determineKind はパス情報から Kind を決定します。
 func determineKind(pi *pathInfo) Kind {
 	// 優先順位: Map > Slice > Struct > String
-	// UsageScope（if/with の基点）は hasChild がある場合のみ Struct になる
+	// usageScope（if/with の基点）は hasChild がある場合のみ Struct になる
 	// 例: {{ if .Status }}{{ .Status }}{{ end }} → Status は String
 	// 例: {{ with .User }}{{ .Name }}{{ end }} → User は Struct（User.Name があるため）
-	if pi.usages[UsageRangeMap] || pi.usages[UsageIndex] {
+	if pi.usages[usageRangeMap] || pi.usages[usageIndex] {
 		return KindMap
 	}
-	if pi.usages[UsageRange] {
+	if pi.usages[usageRange] {
 		return KindSlice
 	}
 	if pi.hasChild {
