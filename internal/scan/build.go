@@ -30,7 +30,22 @@ func buildSchema(insp inspection) Schema {
 		info[key].usages[ref.usage] = true
 	}
 
-	// 2. 各パスについて子パスが存在するか判定
+	// 2. 親パスを補完（子パスが存在する場合、親パスも info に追加）
+	parentPaths := make(map[string]bool)
+	for key := range info {
+		parts := strings.Split(key, ".")
+		for i := 1; i < len(parts); i++ {
+			parentPath := strings.Join(parts[:i], ".")
+			parentPaths[parentPath] = true
+		}
+	}
+	for parentPath := range parentPaths {
+		if info[parentPath] == nil {
+			info[parentPath] = &pathInfo{usages: make(map[usage]bool)}
+		}
+	}
+
+	// 3. 各パスについて子パスが存在するか判定
 	for key := range info {
 		for otherKey := range info {
 			if otherKey != key && strings.HasPrefix(otherKey, key+".") {
@@ -40,13 +55,13 @@ func buildSchema(insp inspection) Schema {
 		}
 	}
 
-	// 3. 各パスの Kind を決定
+	// 4. 各パスの Kind を決定
 	kindMap := make(map[string]Kind)
 	for key, pi := range info {
 		kindMap[key] = determineKind(pi)
 	}
 
-	// 4. スキーマ構造を構築
+	// 5. スキーマ構造を構築
 	schema := Schema{Fields: map[string]*Field{}}
 	buildTree(&schema, info, kindMap)
 
@@ -78,66 +93,50 @@ func buildTree(schema *Schema, info map[string]*pathInfo, kindMap map[string]Kin
 	for key := range info {
 		paths = append(paths, key)
 	}
-	sortByLength(paths)
-
-	// 各パスについてフィールドを作成
-	for _, key := range paths {
-		parts := strings.Split(key, ".")
-		kind := kindMap[key]
-
-		// 親パスが Slice の場合、このパスは要素のフィールドとして扱う
-		insertField(schema, parts, kind, kindMap, info)
-	}
-}
-
-// sortByLength はパスを長さ順（短い順）にソートします。
-func sortByLength(paths []string) {
 	sort.Slice(paths, func(i, j int) bool {
 		return len(paths[i]) < len(paths[j])
 	})
+
+	// 1. トップレベルフィールドをすべて作成
+	for _, path := range paths {
+		parts := strings.Split(path, ".")
+		if len(parts) == 1 {
+			name := parts[0]
+			kind := kindMap[path]
+			if schema.Fields[name] == nil {
+				schema.Fields[name] = createField(name, kind, path, info)
+			}
+		}
+	}
+
+	// 2. 子フィールドを作成
+	for _, path := range paths {
+		parts := strings.Split(path, ".")
+		if len(parts) > 1 {
+			kind := kindMap[path]
+			insertField(schema, parts, kind, info)
+		}
+	}
 }
 
 // insertField はパスに対応するフィールドをスキーマに挿入します。
-func insertField(schema *Schema, parts []string, kind Kind, kindMap map[string]Kind, info map[string]*pathInfo) {
-	if len(parts) == 0 {
+// トップレベルフィールドは buildTree で既に作成されています。
+func insertField(schema *Schema, parts []string, kind Kind, info map[string]*pathInfo) {
+	if len(parts) <= 1 {
 		return
 	}
 
-	// トップレベルフィールドを取得または作成
-	name := parts[0]
-	cur := schema.Fields[name]
-	if cur == nil {
-		topKind := KindStruct
-		if len(parts) == 1 {
-			topKind = kind
-		} else if k, ok := kindMap[name]; ok {
-			topKind = k
-		}
-		cur = &Field{
-			Name: util.Export(name),
-			Kind: topKind,
-		}
-		schema.Fields[name] = cur
-	}
-
-	// Slice/Map の場合は Elem を確保
-	ensureElem(cur, name, info)
-
-	// 単一セグメントの場合は終了
-	if len(parts) == 1 {
-		return
-	}
-
-	// 中間パスを辿る
-	pathSoFar := name
+	// 親フィールドを辿る（トップレベルは必ず存在する）
+	cur := schema.Fields[parts[0]]
 	for i := 1; i < len(parts); i++ {
 		// Slice の場合は要素に潜る
 		if cur.Kind == KindSlice {
 			if cur.Elem == nil {
-				// Slice 要素の Kind を決定: 子パスがあれば Struct、なければ String
+				// 親パスから Elem の Kind を決定
+				parentPath := strings.Join(parts[:i], ".")
 				elemKind := KindString
 				var children map[string]*Field
-				if pi, ok := info[pathSoFar]; ok && pi.hasChild {
+				if pi, ok := info[parentPath]; ok && pi.hasChild {
 					elemKind = KindStruct
 					children = map[string]*Field{}
 				}
@@ -150,15 +149,8 @@ func insertField(schema *Schema, parts []string, kind Kind, kindMap map[string]K
 			cur = cur.Elem
 		}
 
-		// Map の場合は要素に潜る
+		// Map の場合は値は String なので子フィールドは追加しない
 		if cur.Kind == KindMap {
-			if cur.Elem == nil {
-				cur.Elem = &Field{
-					Name: cur.Name + "Value",
-					Kind: KindString,
-				}
-			}
-			// Map の値は通常 String なので、子フィールドは追加しない
 			return
 		}
 
@@ -167,58 +159,54 @@ func insertField(schema *Schema, parts []string, kind Kind, kindMap map[string]K
 		}
 
 		segName := parts[i]
-		pathSoFar = pathSoFar + "." + segName
-
 		if i == len(parts)-1 {
-			// 最後のセグメント
+			// 最後のセグメント - 新しいフィールドを作成
 			if cur.Children[segName] == nil {
-				cur.Children[segName] = &Field{
-					Name: util.Export(segName),
-					Kind: kind,
-				}
+				fullPath := strings.Join(parts, ".")
+				cur.Children[segName] = createField(segName, kind, fullPath, info)
 			}
 		} else {
-			// 中間セグメント
-			if cur.Children[segName] == nil {
-				midKind := KindStruct
-				if k, ok := kindMap[pathSoFar]; ok {
-					midKind = k
-				}
-				cur.Children[segName] = &Field{
-					Name: util.Export(segName),
-					Kind: midKind,
-				}
-			}
+			// 中間セグメント - 既に存在するはず（短い順にソート済み）
 			cur = cur.Children[segName]
 		}
 	}
 }
 
-// ensureElem は Slice/Map フィールドの Elem を確保します。
-// Slice 要素の Kind は info から子パスの有無を判定して決定します。
-func ensureElem(f *Field, path string, info map[string]*pathInfo) {
-	if f == nil {
-		return
+// createField は名前と Kind からフィールドを作成します。
+// path はフルパス（例: "Section.Items"）で、Slice 要素の Kind 判定に使用します。
+func createField(name string, kind Kind, path string, info map[string]*pathInfo) *Field {
+	field := &Field{
+		Name: util.Export(name),
+		Kind: kind,
 	}
-	if f.Kind == KindSlice && f.Elem == nil {
-		// Slice 要素の Kind を決定: 子パスがあれば Struct、なければ String
+
+	// Struct の場合は Children を初期化
+	if kind == KindStruct {
+		field.Children = map[string]*Field{}
+	}
+
+	// Slice の場合は Elem を作成（子パスの有無で Kind を決定）
+	if kind == KindSlice {
 		elemKind := KindString
 		var children map[string]*Field
 		if pi, ok := info[path]; ok && pi.hasChild {
 			elemKind = KindStruct
 			children = map[string]*Field{}
 		}
-		f.Elem = &Field{
-			Name:     f.Name + "Item",
+		field.Elem = &Field{
+			Name:     util.Export(name) + "Item",
 			Kind:     elemKind,
 			Children: children,
 		}
 	}
-	if f.Kind == KindMap && f.Elem == nil {
-		f.Elem = &Field{
-			Name: f.Name + "Value",
+
+	// Map の場合は Elem を作成
+	if kind == KindMap {
+		field.Elem = &Field{
+			Name: util.Export(name) + "Value",
 			Kind: KindString,
 		}
 	}
-}
 
+	return field
+}
