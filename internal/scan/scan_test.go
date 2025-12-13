@@ -86,6 +86,44 @@ func TestScanTemplate_Range_MakesSliceAndElementStruct(t *testing.T) {
 	assertKind(t, id, scan.KindString)
 }
 
+func TestScanTemplate_Range_EmptyBody_MakesSliceString(t *testing.T) {
+	// range のbodyが空の場合、要素は []string になる
+	src := `{{ range .Items }}{{ end }}`
+	sch, err := scan.ScanTemplate(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	items := getTop(t, sch, "Items")
+	assertKind(t, items, scan.KindSlice)
+	if items.Elem == nil {
+		t.Fatal("Items.Elem is nil")
+	}
+	assertKind(t, items.Elem, scan.KindString)
+	if items.Elem.Children != nil {
+		t.Errorf("Items.Elem.Children should be nil, got %v", items.Elem.Children)
+	}
+}
+
+func TestScanTemplate_Range_DotOnly_MakesSliceString(t *testing.T) {
+	// range のbodyでドット自体のみを参照する場合、要素は []string になる
+	src := `{{ range .Tags }}{{ . }}{{ end }}`
+	sch, err := scan.ScanTemplate(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tags := getTop(t, sch, "Tags")
+	assertKind(t, tags, scan.KindSlice)
+	if tags.Elem == nil {
+		t.Fatal("Tags.Elem is nil")
+	}
+	assertKind(t, tags.Elem, scan.KindString)
+	if tags.Elem.Children != nil {
+		t.Errorf("Tags.Elem.Children should be nil, got %v", tags.Elem.Children)
+	}
+}
+
 func TestScanTemplate_Index_MakesMapString(t *testing.T) {
 	src := `{{ index .Meta "env" }}`
 	sch, err := scan.ScanTemplate(src)

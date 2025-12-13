@@ -46,7 +46,8 @@ func (c ctx) with(prefix []string) ctx {
 
 // ScanTemplate は Go テンプレートを AST 解析して、.(ドット）スコープを追跡して
 // フィールド参照からスキーマ木を推論します。
-// 既定では葉はすべて string として扱い、 range は []struct{}, index は map[string]string を推論します。
+// 既定では葉はすべて string として扱い、 range は []struct{} (子フィールドがあれば) または []string (なければ),
+// index は map[string]string を推論します。
 func ScanTemplate(src string) (Schema, error) {
 	tmpl, err := parseTemplateWithDynamicFuncs(src)
 	if err != nil {
@@ -58,8 +59,45 @@ func ScanTemplate(src string) (Schema, error) {
 
 	s := Schema{Fields: map[string]*Field{}}
 	walk(tmpl.Tree.Root, &s, ctx{})
+	normalizeSchema(&s)
 
 	return s, nil
+}
+
+// normalizeSchema は walk 完了後にスキーマを正規化します。
+// walk 中では判断できない処理（全体を見てからでないと決定できないもの）をここで行います。
+func normalizeSchema(s *Schema) {
+	normalizeEmptySliceElements(s)
+}
+
+// normalizeEmptySliceElements は KindSlice フィールドの要素が空の構造体の場合、
+// 要素の Kind を KindString に変更します。
+// (例: {{ range .Tags }}{{ . }}{{ end }} や {{ range .Items }}{{ end }})
+func normalizeEmptySliceElements(s *Schema) {
+	var normalize func(f *Field)
+	normalize = func(f *Field) {
+		if f == nil {
+			return
+		}
+
+		// Slice で要素が空の Struct なら KindString に変換
+		if f.Kind == KindSlice && f.Elem != nil {
+			if f.Elem.Kind == KindStruct && len(f.Elem.Children) == 0 {
+				f.Elem.Kind = KindString
+				f.Elem.Children = nil
+			} else {
+				normalize(f.Elem)
+			}
+		}
+
+		for _, child := range f.Children {
+			normalize(child)
+		}
+	}
+
+	for _, field := range s.Fields {
+		normalize(field)
+	}
 }
 
 // parseTemplateWithDynamicFuncs はテンプレートをパースし、未定義関数があれば動的にダミー関数を追加してリトライします。
