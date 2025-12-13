@@ -102,8 +102,20 @@ func inferFieldType(path []string, field *scan.Field) *TypedField {
 	case scan.KindMap:
 		valType := "string"
 		if field.Elem != nil {
-			elem := inferFieldType(path, field.Elem)
-			valType = elem.GoType
+			if field.Elem.Kind == scan.KindStruct {
+				// マップの値が構造体の場合、UsersValueのような名前付き型
+				if len(path) > 0 {
+					valType = util.Export(path[len(path)-1]) + "Value"
+				} else {
+					valType = util.Export(field.Name) + "Value"
+				}
+				// 要素の子フィールドも推論し、その子フィールドを保存
+				elem := inferFieldType(path, field.Elem)
+				typed.Children = elem.Children
+			} else {
+				elem := inferFieldType(path, field.Elem)
+				valType = elem.GoType
+			}
 		}
 		typed.GoType = "map[string]" + valType
 
@@ -189,6 +201,25 @@ func extractNamedTypes(typed *TypedSchema) {
 							Fields: field.Children,
 						}
 						namedTypes[elemType] = namedType
+					}
+				}
+			}
+		}
+
+		// マップの値型が名前付き構造体の場合
+		if strings.HasPrefix(field.GoType, "map[string]") {
+			valType := field.GoType[len("map[string]"):]
+			if !isBuiltinType(valType) && !strings.Contains(valType, "[") &&
+				!strings.Contains(valType, "map") && !strings.HasPrefix(valType, "struct{") {
+				// すでに登録済みでない場合のみ追加
+				if _, exists := namedTypes[valType]; !exists {
+					// scan結果から構造体を探す
+					if field.Children != nil && len(field.Children) > 0 {
+						namedType := &NamedType{
+							Name:   valType,
+							Fields: field.Children,
+						}
+						namedTypes[valType] = namedType
 					}
 				}
 			}

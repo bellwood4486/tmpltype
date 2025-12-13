@@ -30,7 +30,7 @@ The example will render 4 HTML templates, each demonstrating specific template f
 
 ## What's Included
 
-This example demonstrates 8 key template features organized across 4 template files:
+This example demonstrates 9 key template features organized across 4 template files:
 
 ### Template 1: `basic_fields.tmpl`
 - ✅ **Basic field reference**: `{{ .Title }}`
@@ -43,6 +43,7 @@ This example demonstrates 8 key template features organized across 4 template fi
 ### Template 3: `collections.tmpl`
 - ✅ **Range over slice**: `{{ range .Items }}...{{ end }}`
 - ✅ **Map access with index function**: `{{ index .Meta "key" }}`
+- ✅ **Range over map with struct values**: `{{ range $key, $value := .Users }}{{ .Name }}{{ end }}`
 
 ### Template 4: `advanced.tmpl`
 - ✅ **Nested structures (with + range)**: `{{ with .Project }}{{ range .Tasks }}...{{ end }}{{ end }}`

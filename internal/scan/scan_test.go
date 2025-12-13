@@ -167,6 +167,26 @@ func TestScanTemplate_Range_OneVariable_MakesSlice(t *testing.T) {
 	assertKind(t, items, scan.KindSlice)
 }
 
+func TestScanTemplate_Range_MapWithStructValue(t *testing.T) {
+	// range $key, $value := .Users でドット参照 → map[string]struct{Name, Age string}
+	src := `{{ range $key, $value := .Users }}{{ .Name }}{{ .Age }}{{ end }}`
+	sch, err := scan.ScanTemplate(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	users := getTop(t, sch, "Users")
+	assertKind(t, users, scan.KindMap)
+	if users.Elem == nil {
+		t.Fatal("Users.Elem is nil")
+	}
+	assertKind(t, users.Elem, scan.KindStruct)
+	name := getChild(t, users.Elem, "Name")
+	assertKind(t, name, scan.KindString)
+	age := getChild(t, users.Elem, "Age")
+	assertKind(t, age, scan.KindString)
+}
+
 func TestScanTemplate_WithThenRange_NestedUnderPrefix(t *testing.T) {
 	src := `
 {{ with .Section }}
