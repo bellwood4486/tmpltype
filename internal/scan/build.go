@@ -1,6 +1,7 @@
 package scan
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/bellwood4486/tmpltype/internal/util"
@@ -91,14 +92,9 @@ func buildTree(schema *Schema, info map[string]*pathInfo, kindMap map[string]Kin
 
 // sortByLength はパスを長さ順（短い順）にソートします。
 func sortByLength(paths []string) {
-	// シンプルなバブルソート（パス数は少ないので十分）
-	for i := 0; i < len(paths); i++ {
-		for j := i + 1; j < len(paths); j++ {
-			if len(paths[i]) > len(paths[j]) {
-				paths[i], paths[j] = paths[j], paths[i]
-			}
-		}
-	}
+	sort.Slice(paths, func(i, j int) bool {
+		return len(paths[i]) < len(paths[j])
+	})
 }
 
 // insertField はパスに対応するフィールドをスキーマに挿入します。
