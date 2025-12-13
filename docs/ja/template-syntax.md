@@ -87,7 +87,27 @@
 
 `.Items`をrangeの本体内のフィールドを持つスライス型`[]struct{...}`として推論します。
 
-### 8. index関数によるマップアクセス
+### 8. mapのrange
+
+```go
+{{ range $key, $value := .Meta }}
+  <dt>{{ $key }}</dt>
+  <dd>{{ $value }}</dd>
+{{ end }}
+```
+
+2変数のrange（`$k, $v := .Field`）は`map[string]string`として推論されます。
+1変数または変数なしのrangeはスライスとして推論されます。
+
+**スライスでインデックスが必要な場合は@paramで上書き：**
+```go
+{{/* @param Products []struct{Name string} */}}
+{{ range $i, $item := .Products }}
+  <li>{{ $i }}: {{ $item.Name }}</li>
+{{ end }}
+```
+
+### 9. index関数によるマップアクセス
 
 ```go
 {{ index .Meta "key" }}
@@ -135,6 +155,7 @@
 | `{{ .Field }}` | `string` | `Title string` |
 | `{{ .Obj.Field }}` | `string`を持つネストされた構造体 | `User struct{Name string}` |
 | `{{ range .Items }}...{{ end }}` | `[]struct{...}` | `Items []struct{...}` |
+| `{{ range $k, $v := .Map }}...{{ end }}` | `map[string]string` | `Meta map[string]string` |
 | `{{ index .Map "key" }}` | `map[string]string` | `Meta map[string]string` |
 
 ### フィールド命名

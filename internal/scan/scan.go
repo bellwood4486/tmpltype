@@ -235,10 +235,15 @@ func walk(n tplparse.Node, s *Schema, c ctx) {
 			walk(x.ElseList, s, c)
 		}
 	case *tplparse.RangeNode:
-		// range .Items → Items は []struct{] に
 		base := baseFieldFromPipe(x.Pipe)
 		if len(base) > 0 {
-			markSliceStruct(s, append(c.dot, base...))
+			// range $k, $v := .Field → map[string]string
+			// range .Field → []struct{}
+			if len(x.Pipe.Decl) == 2 {
+				markMapString(s, append(c.dot, base...))
+			} else {
+				markSliceStruct(s, append(c.dot, base...))
+			}
 		}
 		nc := c
 		if len(base) > 0 {

@@ -139,6 +139,34 @@ func TestScanTemplate_Index_MakesMapString(t *testing.T) {
 	assertKind(t, meta.Elem, scan.KindString)
 }
 
+func TestScanTemplate_Range_TwoVariables_MakesMap(t *testing.T) {
+	// range $k, $v := .Field → map[string]string
+	src := `{{ range $k, $v := .Meta }}{{ $k }}={{ $v }}{{ end }}`
+	sch, err := scan.ScanTemplate(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	meta := getTop(t, sch, "Meta")
+	assertKind(t, meta, scan.KindMap)
+	if meta.Elem == nil {
+		t.Fatal("Meta.Elem is nil")
+	}
+	assertKind(t, meta.Elem, scan.KindString)
+}
+
+func TestScanTemplate_Range_OneVariable_MakesSlice(t *testing.T) {
+	// range $item := .Items → []struct{}
+	src := `{{ range $item := .Items }}{{ $item }}{{ end }}`
+	sch, err := scan.ScanTemplate(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	items := getTop(t, sch, "Items")
+	assertKind(t, items, scan.KindSlice)
+}
+
 func TestScanTemplate_WithThenRange_NestedUnderPrefix(t *testing.T) {
 	src := `
 {{ with .Section }}

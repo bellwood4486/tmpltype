@@ -14,7 +14,7 @@
   - [Else Clauses](#6-else-clauses)
 - [Collections](#collections)
   - [Range Over Slice](#7-range-over-slice)
-  - [Range with Index](#8-range-with-index)
+  - [Range Over Map](#8-range-over-map)
   - [Map Access](#9-map-access-with-index-function)
 - [Advanced Patterns](#advanced-patterns)
   - [Nested Structures](#10-nested-structures-with--range)
@@ -206,29 +206,34 @@ type TemplateParams struct {
 {{/* @param Items []struct{ID int64; Title string; Price float64} */}}
 ```
 
-### 8. Range with Index
+### 8. Range Over Map
 
 **Template:**
 ```go
-{{ range $i, $item := .Products }}
-  <li>{{ $i }}: {{ $item.Name }}</li>
+{{ range $key, $value := .Meta }}
+  <dt>{{ $key }}</dt>
+  <dd>{{ $value }}</dd>
 {{ end }}
 ```
 
 **Inferred Type:**
 ```go
-type TemplateParamsProductsItem struct {
-    Name string
-}
-
 type TemplateParams struct {
-    Products []TemplateParamsProductsItem
+    Meta map[string]string
 }
 ```
 
 **Key Points:**
-- Index variable (`$i`) doesn't affect type inference
-- Item variable (`$item`) is analyzed for fields
+- Two-variable range (`$k, $v := .Field`) is inferred as `map[string]string`
+- Single-variable or no-variable range is inferred as slice
+
+**Override for slice with index:**
+```go
+{{/* @param Products []struct{Name string} */}}
+{{ range $i, $item := .Products }}
+  <li>{{ $i }}: {{ $item.Name }}</li>
+{{ end }}
+```
 
 ### 9. Map Access with Index Function
 
@@ -371,6 +376,7 @@ type TemplateParams struct {
 | `{{ .Field }}` | `string` | `Title string` |
 | `{{ .Obj.Field }}` | nested struct with `string` | `User struct{Name string}` |
 | `{{ range .Items }}...{{ end }}` | `[]struct{...}` | `Items []struct{...}` |
+| `{{ range $k, $v := .Map }}...{{ end }}` | `map[string]string` | `Meta map[string]string` |
 | `{{ index .Map "key" }}` | `map[string]string` | `Meta map[string]string` |
 
 ### Scope Tracking
