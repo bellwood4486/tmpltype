@@ -35,13 +35,23 @@ type Schema struct {
 // ctx は現在の .(ドット)を表すパスを保持します。
 // with/range でドットが移動したときはこのパスを延長します。
 type ctx struct {
-	dot []string
+	dot  []string
+	vars map[string][]string // 変数名 → パス (例: "$v" → ["Users"])
 }
 
 func (c ctx) with(prefix []string) ctx {
 	dup := make([]string, len(c.dot))
 	copy(dup, c.dot)
-	return ctx{dot: append(dup, prefix...)}
+	return ctx{dot: append(dup, prefix...), vars: c.vars}
+}
+
+func (c ctx) withVar(name string, path []string) ctx {
+	newVars := make(map[string][]string)
+	for k, v := range c.vars {
+		newVars[k] = v
+	}
+	newVars[name] = path
+	return ctx{dot: c.dot, vars: newVars}
 }
 
 // ScanTemplate は Go テンプレートを AST 解析して、.(ドット）スコープを追跡して
@@ -67,21 +77,21 @@ func ScanTemplate(src string) (Schema, error) {
 // normalizeSchema は walk 完了後にスキーマを正規化します。
 // walk 中では判断できない処理（全体を見てからでないと決定できないもの）をここで行います。
 func normalizeSchema(s *Schema) {
-	normalizeEmptySliceElements(s)
+	normalizeEmptyElements(s)
 }
 
-// normalizeEmptySliceElements は KindSlice フィールドの要素が空の構造体の場合、
+// normalizeEmptyElements は Slice/Map の要素が空の構造体の場合、
 // 要素の Kind を KindString に変更します。
-// (例: {{ range .Tags }}{{ . }}{{ end }} や {{ range .Items }}{{ end }})
-func normalizeEmptySliceElements(s *Schema) {
+// (例: {{ range .Tags }}{{ . }}{{ end }} や {{ range $k, $v := .Meta }}{{ $v }}{{ end }})
+func normalizeEmptyElements(s *Schema) {
 	var normalize func(f *Field)
 	normalize = func(f *Field) {
 		if f == nil {
 			return
 		}
 
-		// Slice で要素が空の Struct なら KindString に変換
-		if f.Kind == KindSlice && f.Elem != nil {
+		// Slice/Map で要素が空の Struct なら KindString に変換
+		if (f.Kind == KindSlice || f.Kind == KindMap) && f.Elem != nil {
 			if f.Elem.Kind == KindStruct && len(f.Elem.Children) == 0 {
 				f.Elem.Kind = KindString
 				f.Elem.Children = nil
@@ -236,10 +246,11 @@ func walk(n tplparse.Node, s *Schema, c ctx) {
 		}
 	case *tplparse.RangeNode:
 		base := baseFieldFromPipe(x.Pipe)
+		isMap := len(x.Pipe.Decl) == 2
 		if len(base) > 0 {
 			// range $k, $v := .Field → map[string]string
 			// range .Field → []struct{}
-			if len(x.Pipe.Decl) == 2 {
+			if isMap {
 				markMapString(s, append(c.dot, base...))
 			} else {
 				markSliceStruct(s, append(c.dot, base...))
@@ -248,6 +259,12 @@ func walk(n tplparse.Node, s *Schema, c ctx) {
 		nc := c
 		if len(base) > 0 {
 			nc = c.with(base)
+		}
+		// 2変数の range の場合、$v (2番目の変数) をコンテキストに登録
+		// $v.Field のような参照で map の値の子フィールドを追跡できるようにする
+		if isMap && len(x.Pipe.Decl) == 2 {
+			varName := x.Pipe.Decl[1].Ident[0] // "$v"
+			nc = nc.withVar(varName, append(c.dot, base...))
 		}
 		if x.List != nil {
 			walk(x.List, s, nc)
@@ -277,6 +294,16 @@ func collectFromPipe(p *tplparse.PipeNode, s *Schema, c ctx) {
 		for _, a := range cmd.Args {
 			if f, ok := a.(*tplparse.FieldNode); ok {
 				ensurePath(s, append(c.dot, f.Ident...), true)
+			}
+			// 変数経由のフィールド参照 $v.Name を追跡
+			// $v が map の値を指す場合、map の値の子フィールドとして追跡
+			if v, ok := a.(*tplparse.VariableNode); ok && len(v.Ident) >= 2 {
+				varName := v.Ident[0]          // "$v"
+				fields := v.Ident[1:]          // ["Name"]
+				if basePath, exists := c.vars[varName]; exists {
+					// basePath は map フィールドのパス、fields はその値の子フィールド
+					ensureMapValuePath(s, basePath, fields)
+				}
 			}
 		}
 	}
@@ -521,8 +548,90 @@ func markMapString(s *Schema, parts []string) {
 		cur = ensureStruct(cur.Children, parts[i])
 	}
 	cur.Kind = KindMap
-	cur.Elem = &Field{
-		Name: cur.Name + "Value",
-		Kind: KindString, // string を既定
+	if cur.Elem == nil {
+		cur.Elem = &Field{
+			Name: cur.Name + "Value",
+			Kind: KindString, // string を既定
+		}
+	}
+}
+
+// ensureMapValuePath は map フィールドの値に子フィールドを追加します。
+// basePath は map フィールドへのパス、fields は値の子フィールドです。
+// 例: basePath=["Users"], fields=["Name"] → Users map の値に Name フィールドを追加
+func ensureMapValuePath(s *Schema, basePath []string, fields []string) {
+	if len(basePath) == 0 || len(fields) == 0 {
+		return
+	}
+
+	// map フィールドを見つける
+	if s.Fields == nil {
+		return
+	}
+	cur, exists := s.Fields[basePath[0]]
+	if !exists {
+		return
+	}
+	for i := 1; i < len(basePath); i++ {
+		if cur.Children == nil {
+			return
+		}
+		cur, exists = cur.Children[basePath[i]]
+		if !exists {
+			return
+		}
+	}
+
+	// map フィールドの Elem を構造体に昇格
+	if cur.Kind != KindMap || cur.Elem == nil {
+		return
+	}
+	if cur.Elem.Kind == KindString {
+		cur.Elem.Kind = KindStruct
+		cur.Elem.Children = map[string]*Field{}
+	}
+
+	// Elem.Children にフィールドを追加
+	ensureFieldPath(cur.Elem.Children, fields)
+}
+
+// ensureFieldPath は Children マップにフィールドパスを追加します。
+// 中間ノードは struct、葉は string として作成します。
+func ensureFieldPath(children map[string]*Field, fields []string) {
+	if len(fields) == 0 || children == nil {
+		return
+	}
+
+	// 単一フィールドの場合は葉 string として確保
+	if len(fields) == 1 {
+		name := fields[0]
+		if _, exists := children[name]; !exists {
+			children[name] = &Field{
+				Name: util.Export(name),
+				Kind: KindString,
+			}
+		}
+		return
+	}
+
+	// 複数フィールドの場合、中間を struct、最後を string として作成
+	cur := ensureStruct(children, fields[0])
+	for i := 1; i < len(fields)-1; i++ {
+		if cur.Children == nil {
+			cur.Children = map[string]*Field{}
+		}
+		cur = ensureStruct(cur.Children, fields[i])
+	}
+
+	// 葉フィールドを string として追加
+	if cur.Children == nil {
+		cur.Children = map[string]*Field{}
+	}
+	leafName := fields[len(fields)-1]
+	if _, exists := cur.Children[leafName]; !exists {
+		cur.Children[leafName] = &Field{
+			Name: util.Export(leafName),
+			Kind: KindString,
+		}
 	}
 }
