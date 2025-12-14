@@ -21,11 +21,43 @@ func buildSchema(insp inspection) Schema {
 	}
 
 	info := buildPathInfoMap(insp.refs)
+	logPathInfoMapResult(info)
+
 	kindMap := buildKindMap(info)
+	logKindMapResult(kindMap)
+
 	schema := Schema{Fields: map[string]*Field{}}
 	buildTree(&schema, info, kindMap)
 
 	return schema
+}
+
+// logPathInfoMapResult は pathInfo マップをログ出力します。
+func logPathInfoMapResult(info map[string]*pathInfo) {
+	paths := make([]string, 0, len(info))
+	for p := range info {
+		paths = append(paths, p)
+	}
+	sort.Strings(paths)
+
+	logPathInfoCount(len(info))
+	for _, p := range paths {
+		logPathInfo(p, info[p])
+	}
+}
+
+// logKindMapResult は kindMap をログ出力します。
+func logKindMapResult(kindMap map[string]Kind) {
+	paths := make([]string, 0, len(kindMap))
+	for p := range kindMap {
+		paths = append(paths, p)
+	}
+	sort.Strings(paths)
+
+	logKindCount(len(kindMap))
+	for _, p := range paths {
+		logKind(p, kindMap[p])
+	}
 }
 
 // buildPathInfoMap は fieldRef リストから pathInfo マップを構築します。

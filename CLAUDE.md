@@ -101,6 +101,42 @@ The code generation pipeline flows through four internal packages:
    - Supports template grouping (subdirectories become nested namespaces)
    - Uses functional options pattern (`WithFuncs`) for custom template functions
 
+## Logging
+
+tmpltype uses a global logger (`internal/logger`) with two levels:
+
+- **info** (default): Shows template names being processed
+- **debug**: Shows detailed scan information (field references, path info, kind inference, schema tree)
+
+Log level is controlled by the `TMPLTYPE_LOG_LEVEL` environment variable:
+
+```bash
+# Default (info) - shows template names only
+go run ./cmd/tmpltype -dir templates -pkg main -out template_gen.go
+# Output: [template] email
+
+# Debug - shows all scan details
+TMPLTYPE_LOG_LEVEL=debug go run ./cmd/tmpltype -dir templates -pkg main -out template_gen.go
+# Output: [template] email
+#         [scan:ref] count=2
+#         [scan:ref] path=User.Name usage=leaf
+#         ...
+
+# Works with go generate
+TMPLTYPE_LOG_LEVEL=debug go generate ./...
+```
+
+Debug output is grep-friendly:
+```bash
+TMPLTYPE_LOG_LEVEL=debug go run ./cmd/tmpltype ... | grep "\[scan:kind\]"
+TMPLTYPE_LOG_LEVEL=debug go run ./cmd/tmpltype ... | grep "path=User"
+```
+
+**Architecture note**: Logging concerns are separated from business logic:
+- `internal/logger`: Global logger with level management
+- `internal/scan/log.go`: Scan-specific log adapters (formats scan data into logger.Fields)
+- Business logic calls simple log functions without formatting concerns
+
 ## Key Patterns
 
 - **@param directive**: Use `{{/* @param Path.To.Field type */}}` in templates to override inferred types

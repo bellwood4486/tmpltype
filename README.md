@@ -79,6 +79,7 @@ func main() {
 - **🎨 Custom Functions**: Use any custom template functions with functional option pattern
 - **🔧 go generate**: Seamless integration with Go's standard workflow
 - **💡 IDE Support**: Full autocompletion for template parameters
+- **🔍 Debug Logging**: Optional detailed logging via `TMPLTYPE_LOG_LEVEL=debug` for understanding type inference
 
 ### Documentation
 
@@ -201,6 +202,7 @@ func main() {
 - **🎨 カスタム関数**: functional optionパターンで任意のカスタムテンプレート関数を使用可能
 - **🔧 go generate**: Goの標準ワークフローにシームレスに統合
 - **💡 IDE サポート**: テンプレートパラメータの完全な自動補完
+- **🔍 デバッグログ**: `TMPLTYPE_LOG_LEVEL=debug`で型推論を理解するための詳細ログ出力
 
 ### ドキュメント
 

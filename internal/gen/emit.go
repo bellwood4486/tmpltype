@@ -7,10 +7,16 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/bellwood4486/tmpltype/internal/logger"
 	"github.com/bellwood4486/tmpltype/internal/scan"
 	"github.com/bellwood4486/tmpltype/internal/typing"
 	"github.com/bellwood4486/tmpltype/internal/util"
 )
+
+// logTemplate はテンプレートの処理開始をログ出力します。
+func logTemplate(name string) {
+	logger.Info("[template] %s", name)
+}
 
 // ============================================================
 // Public Types
@@ -164,6 +170,7 @@ func prepare(specs []TemplateSpec) (*emitPrepared, error) {
 		varName := strings.ReplaceAll(templateName, "/", "_") + "TplSource"
 
 		// テンプレートをスキャン
+		logTemplate(spec.Name)
 		sch, err := scan.ScanTemplate(spec.Source)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan template %s: %w", spec.Name, err)

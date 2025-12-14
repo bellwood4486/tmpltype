@@ -124,17 +124,17 @@ func RenderBasicTypes(w io.Writer, p BasicTypes) error {
 // complex_types template
 // ============================================================
 
+type ComplexTypesRecordsItem struct {
+	Age   int
+	Name  string
+	Score *int
+}
+
 type ComplexTypesItemsItem struct {
 	ID    int64
 	Price float64
 	Tags  []string
 	Title string
-}
-
-type ComplexTypesRecordsItem struct {
-	Age   int
-	Name  string
-	Score *int
 }
 
 // ComplexTypes represents parameters for complex_types template
