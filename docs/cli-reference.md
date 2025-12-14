@@ -6,6 +6,7 @@ Complete command-line reference for the `tmpltype` tool.
 
 - [Synopsis](#synopsis)
 - [Options](#options)
+- [Logging](#logging)
 - [Usage Examples](#usage-examples)
 - [Directory Scanning Behavior](#directory-scanning-behavior)
 - [Integration with go generate](#integration-with-go-generate)
@@ -98,6 +99,99 @@ tmpltype -dir tpl -pkg web -out web_templates.go
 # With path
 tmpltype -dir ../templates -pkg shared -out ../shared/templates_gen.go
 ```
+
+## Logging
+
+Control tmpltype's output verbosity using the `TMPLTYPE_LOG_LEVEL` environment variable.
+
+### Log Levels
+
+#### `info` (default)
+
+Shows only template names being processed:
+
+```bash
+tmpltype -dir templates -pkg main -out template_gen.go
+```
+
+**Output:**
+```
+[template] email
+[template] notification
+```
+
+#### `debug`
+
+Shows detailed scan information including field references, type inference, and schema construction:
+
+```bash
+TMPLTYPE_LOG_LEVEL=debug tmpltype -dir templates -pkg main -out template_gen.go
+```
+
+**Output:**
+```
+[template] email
+[scan:ref] count=2
+[scan:ref] path=User.Name usage=leaf
+[scan:ref] path=Message usage=leaf
+[scan:pathinfo] count=3
+[scan:pathinfo] hasChild=false path=Message usages=leaf
+[scan:pathinfo] hasChild=true path=User usages=
+[scan:pathinfo] hasChild=false path=User.Name usages=leaf
+[scan:kind] count=3
+[scan:kind] kind=String path=Message
+[scan:kind] kind=Struct path=User
+[scan:kind] kind=String path=User.Name
+[scan:schema] fields=2
+[scan:schema] field=Message kind=String
+[scan:schema] field=User kind=Struct
+[scan:schema] field=  Name kind=String
+```
+
+### Using with go generate
+
+Set the log level in your `gen.go` file:
+
+```go
+package main
+
+//go:generate env TMPLTYPE_LOG_LEVEL=debug tmpltype -dir templates -pkg main -out template_gen.go
+```
+
+Or set it once for the entire session:
+
+```bash
+export TMPLTYPE_LOG_LEVEL=debug
+go generate ./...
+```
+
+### Filtering Debug Output
+
+Debug output is designed to be grep-friendly:
+
+```bash
+# Show only kind inference
+TMPLTYPE_LOG_LEVEL=debug tmpltype ... | grep "\[scan:kind\]"
+
+# Show all information for a specific path
+TMPLTYPE_LOG_LEVEL=debug tmpltype ... | grep "path=User"
+
+# Show only schema tree
+TMPLTYPE_LOG_LEVEL=debug tmpltype ... | grep "\[scan:schema\]"
+```
+
+### Use Cases
+
+**Default (info):**
+- Production builds
+- CI/CD pipelines
+- Quick feedback on which templates are being processed
+
+**Debug:**
+- Understanding type inference decisions
+- Troubleshooting why a field has an unexpected type
+- Learning how tmpltype analyzes templates
+- Debugging complex template structures
 
 ## Usage Examples
 

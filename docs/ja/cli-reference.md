@@ -6,6 +6,7 @@
 
 - [概要](#概要)
 - [オプション](#オプション)
+- [ロギング](#ロギング)
 - [使用例](#使用例)
 - [ディレクトリスキャンの動作](#ディレクトリスキャンの動作)
 - [go generateとの統合](#go-generateとの統合)
@@ -98,6 +99,99 @@ tmpltype -dir tpl -pkg web -out web_templates.go
 # パス付き
 tmpltype -dir ../templates -pkg shared -out ../shared/templates_gen.go
 ```
+
+## ロギング
+
+`TMPLTYPE_LOG_LEVEL`環境変数を使用してtmpltypeの出力の詳細度を制御します。
+
+### ログレベル
+
+#### `info` (デフォルト)
+
+処理中のテンプレート名のみを表示：
+
+```bash
+tmpltype -dir templates -pkg main -out template_gen.go
+```
+
+**出力:**
+```
+[template] email
+[template] notification
+```
+
+#### `debug`
+
+フィールド参照、型推論、スキーマ構築を含む詳細なスキャン情報を表示：
+
+```bash
+TMPLTYPE_LOG_LEVEL=debug tmpltype -dir templates -pkg main -out template_gen.go
+```
+
+**出力:**
+```
+[template] email
+[scan:ref] count=2
+[scan:ref] path=User.Name usage=leaf
+[scan:ref] path=Message usage=leaf
+[scan:pathinfo] count=3
+[scan:pathinfo] hasChild=false path=Message usages=leaf
+[scan:pathinfo] hasChild=true path=User usages=
+[scan:pathinfo] hasChild=false path=User.Name usages=leaf
+[scan:kind] count=3
+[scan:kind] kind=String path=Message
+[scan:kind] kind=Struct path=User
+[scan:kind] kind=String path=User.Name
+[scan:schema] fields=2
+[scan:schema] field=Message kind=String
+[scan:schema] field=User kind=Struct
+[scan:schema] field=  Name kind=String
+```
+
+### go generateでの使用
+
+`gen.go`ファイルでログレベルを設定：
+
+```go
+package main
+
+//go:generate env TMPLTYPE_LOG_LEVEL=debug tmpltype -dir templates -pkg main -out template_gen.go
+```
+
+またはセッション全体で一度設定：
+
+```bash
+export TMPLTYPE_LOG_LEVEL=debug
+go generate ./...
+```
+
+### デバッグ出力のフィルタリング
+
+デバッグ出力はgrep向けに設計されています：
+
+```bash
+# Kind推論のみ表示
+TMPLTYPE_LOG_LEVEL=debug tmpltype ... | grep "\[scan:kind\]"
+
+# 特定のパスの全情報を表示
+TMPLTYPE_LOG_LEVEL=debug tmpltype ... | grep "path=User"
+
+# スキーマツリーのみ表示
+TMPLTYPE_LOG_LEVEL=debug tmpltype ... | grep "\[scan:schema\]"
+```
+
+### ユースケース
+
+**デフォルト (info):**
+- プロダクションビルド
+- CI/CDパイプライン
+- どのテンプレートが処理されているかの迅速なフィードバック
+
+**デバッグ:**
+- 型推論の決定を理解する
+- フィールドが予期しない型になっている理由のトラブルシューティング
+- tmpltypeがテンプレートをどのように解析するかを学ぶ
+- 複雑なテンプレート構造のデバッグ
 
 ## 使用例
 
